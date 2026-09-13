@@ -1,0 +1,29 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["helpers:pinGitHubActionDigests"],
+  "automerge": false,
+  "semanticCommits": "enabled",
+  "semanticCommitType": "chore",
+  "semanticCommitScope": "deps",
+  "dependencyDashboard": true,
+  "timezone": "Europe/Berlin",
+  "schedule": ["* 0-4 * * 1"],
+  "prConcurrentLimit": 3,
+  "prHourlyLimit": 1,
+  "packageRules": [
+    {
+      "matchManagers": ["rust-toolchain"],
+      "matchDepTypes": ["toolchain"],
+      "rangeStrategy": "pin"
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/.github/workflows/dependency-policy\\.ya?ml$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>crate) depName=(?<depName>cargo-(?:audit|deny)) versioning=(?<versioning>semver)\\s+cargo install --locked --version (?<currentValue>\\S+)"
+      ]
+    }
+  ]
+}

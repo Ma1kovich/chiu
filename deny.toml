@@ -1,0 +1,52 @@
+# This policy applies to the committed application dependency graph. Keep each
+# exception as narrow as possible so a new license or source needs review.
+
+[licenses]
+allow = [
+  "0BSD",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-3-Clause",
+  "CC0-1.0",
+  "ISC",
+  "MIT",
+  "MIT-0",
+  "Unicode-3.0",
+  "Unlicense",
+  "Zlib",
+]
+confidence-threshold = 0.93
+unused-allowed-license = "deny"
+unused-license-exception = "deny"
+
+# Tauri's current transitive graph requires these MPL-2.0 crates. They are
+# deliberately versioned exceptions, not a blanket MPL-2.0 allowance.
+[[licenses.exceptions]]
+allow = ["MPL-2.0"]
+crate = "cssparser@0.36.0"
+
+[[licenses.exceptions]]
+allow = ["MPL-2.0"]
+crate = "cssparser-macros@0.6.1"
+
+[[licenses.exceptions]]
+allow = ["MPL-2.0"]
+crate = "dtoa-short@0.3.5"
+
+[[licenses.exceptions]]
+allow = ["MPL-2.0"]
+crate = "option-ext@0.2.0"
+
+[[licenses.exceptions]]
+allow = ["MPL-2.0"]
+crate = "selectors@0.36.1"
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+required-git-spec = "rev"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

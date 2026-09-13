@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" color="#000000" role="img" aria-label="Chiù side-eye owl">
+<defs>
+      <clipPath id="chiu-eye-left"><path d="M25 46 Q38 50 53 48 L53 66 L25 66 Z"/></clipPath>
+      <clipPath id="chiu-eye-right"><path d="M67 48 Q82 46 95 43 L95 66 L67 66 Z"/></clipPath>
+      <g id="chiu-side-eye-owl" fill="currentColor">
+        <path fill-rule="evenodd" d="M20 29 Q13 19 15 9 Q25 13 35 23 Q60 14 85 23 Q95 13 105 9 Q107 21 100 31 Q108 42 104 58 Q112 76 101 94 Q92 108 60 108 Q28 108 19 94 Q8 78 16 59 Q11 41 20 29 Z
+          M22 43 C22 27 41 24 52 35 L60 43 L68 35 C79 24 98 27 98 43 C98 59 84 71 69 69 L60 78 L51 69 C36 71 22 59 22 43 Z
+          M25 70 Q24 86 36 95 Q20 89 21 73 Z
+          M95 70 Q96 86 84 95 Q100 89 99 73 Z
+          M45 83 Q49 88 53 83 L49 92 Z
+          M57 88 Q61 93 65 88 L61 97 Z
+          M69 83 Q73 88 77 83 L73 92 Z"/>
+        <g clip-path="url(#chiu-eye-left)"><ellipse cx="45" cy="49" rx="6" ry="10"/></g>
+        <g clip-path="url(#chiu-eye-right)"><ellipse cx="87" cy="47" rx="6" ry="10"/></g>
+        <path d="M25 46 Q38 50 53 48 M67 48 Q82 46 95 43" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+        <path d="M54 59 Q60 55 66 59 Q65 68 60 72 Q56 66 54 59 Z"/>
+        <path d="M38 104 Q34 114 40 113 Q44 116 47 112 Q51 115 53 111 L52 105 M68 105 L67 111 Q69 115 73 112 Q76 116 80 113 Q86 114 82 104"/>
+      </g>
+    </defs>
+  <use href="#chiu-side-eye-owl"/>
+</svg>

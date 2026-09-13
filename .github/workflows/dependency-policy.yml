@@ -1,0 +1,36 @@
+name: Dependency policy
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - src-tauri/Cargo.toml
+      - src-tauri/Cargo.lock
+      - deny.toml
+      - .github/workflows/dependency-policy.yml
+  schedule:
+    # 03:00 CET / 04:00 CEST every Monday.
+    - cron: "0 2 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-policy:
+    name: Dependency policy
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install dependency policy tools
+        run: |
+          # renovate: datasource=crate depName=cargo-audit versioning=semver
+          cargo install --locked --version 0.22.2 cargo-audit
+          # renovate: datasource=crate depName=cargo-deny versioning=semver
+          cargo install --locked --version 0.20.2 cargo-deny
+      - name: Audit committed dependency graph
+        run: cargo audit --file src-tauri/Cargo.lock
+      - name: Enforce dependency policy
+        run: cargo deny --manifest-path src-tauri/Cargo.toml --config deny.toml --locked check bans licenses sources

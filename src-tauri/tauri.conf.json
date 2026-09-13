@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Chiù",
+  "identifier": "io.github.ma1kovich.chiu",
+  "app": {
+    "windows": []
+  },
+  "bundle": {
+    "icon": [
+      "icons/icon.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

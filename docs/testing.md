@@ -1,0 +1,109 @@
+# Testing and validation
+
+Chiù combines deterministic product rules with native Windows and macOS
+integration. Both kinds of evidence matter, but they prove different things.
+
+## Canonical local checks
+
+Run the same normal checks represented by pull-request CI:
+
+```bash
+cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings
+cargo test --manifest-path src-tauri/Cargo.toml --all-targets --locked
+cargo check --manifest-path src-tauri/Cargo.toml --all-targets --locked
+```
+
+[AGENTS.md](../AGENTS.md) defines the canonical checks. For a dependency or
+policy change, also run the audit and policy commands documented there.
+
+## Deterministic behavior
+
+Tests exercise product behavior through stable observable seams rather than
+private implementation details. The deterministic suite covers:
+
+- application startup, degraded readiness, ordered shutdown, and cleanup
+  failures;
+- manual session deadlines, extensions, expiry, and commands;
+- detector qualification, grace, counter resets, and continuity loss;
+- automatic power eligibility and reconciliation;
+- overlapping wake reasons and truthful native acquisition failure;
+- settings persistence, partial recovery, backup recovery, and future-schema
+  protection;
+- tray projection and command vocabulary;
+- launch-at-login desired/observed state;
+- updater cadence, consent, failure isolation, and shutdown completion; and
+- bounded local logs and copied diagnostics.
+
+These tests prove rules and state transitions. They do not prove that a native
+operating-system request is honored on a particular machine.
+
+## Native inspection aids
+
+On Windows, inspect outstanding power requests with:
+
+```powershell
+powercfg /requests
+```
+
+While Chiù protection is active, the output should identify Chiù under a
+`SYSTEM` request and should not show a Chiù `DISPLAY` request. The request
+should disappear after protection ends or the process exits.
+
+On macOS, inspect assertions with:
+
+```bash
+pmset -g assertions
+```
+
+While protection is active, the output should show a Chiù
+`PreventUserIdleSystemSleep` assertion and no Chiù display-sleep assertion. It
+should disappear after protection ends or the process exits.
+
+These commands inspect native state; they do not replace a real sleep test.
+Platform acceptance must also exercise actual idle-sleep behavior, release,
+process exit, and relevant power-source transitions on supported hardware.
+
+## CI evidence
+
+Pull-request CI runs formatting, linting, tests, and a macOS compile check on a
+macOS runner. A Windows job runs tests and a compile check on a hosted Windows
+runner. A green compile job proves that the supported target builds in that
+environment; it does not prove tray appearance, sleep behavior, autostart,
+installer behavior, or clean native shutdown on a user's machine.
+
+Platform-specific changes should record which Windows and macOS scenarios were
+exercised, on what kind of host, and any limitation that remained. Evidence
+from one supported operating system does not establish behavior on the other.
+
+## Packaging validation
+
+The [packaging validation workflow](../.github/workflows/development-packages.yml)
+can be started manually and also runs on pull requests that change packaging
+inputs. It builds:
+
+- a Windows 11 x64 NSIS installer; and
+- a universal macOS application archive containing Intel and Apple Silicon
+  slices.
+
+Artifacts include the workflow run and attempt in their names and are retained
+for 30 days. The workflow validates expected file structure and architecture
+before upload.
+
+Successful packaging does not prove installation, first launch, tray/menu
+rendering, single-instance behavior, actual sleep prevention, updater
+integration, or clean process exit. Those behaviors require real-machine
+validation.
+
+## Recording validation
+
+A pull request should state:
+
+- the exact deterministic commands run;
+- the supported platforms affected;
+- native checks and real-machine scenarios actually performed;
+- behavior that remains unverified; and
+- whether packaging, signing, updater, permissions, or release-sensitive
+  configuration changed.
+
+Do not convert an unperformed native scenario into a documentation claim.

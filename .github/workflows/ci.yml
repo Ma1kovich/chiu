@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    name: Format
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Confirm pinned toolchain
+        run: rustup show active-toolchain
+      - name: Check formatting
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+
+  clippy:
+    name: Clippy
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Confirm pinned toolchain
+        run: rustup show active-toolchain
+      - name: Lint application targets
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings
+
+  test:
+    name: Test
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Confirm pinned toolchain
+        run: rustup show active-toolchain
+      - name: Test application targets
+        run: cargo test --manifest-path src-tauri/Cargo.toml --all-targets --locked
+
+  macos-check:
+    name: macOS compile
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Confirm pinned toolchain
+        run: rustup show active-toolchain
+      - name: Check application targets
+        run: cargo check --manifest-path src-tauri/Cargo.toml --all-targets --locked
+
+  windows-check:
+    name: Windows test and compile
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Confirm pinned toolchain
+        run: rustup show active-toolchain
+      - name: Test application targets
+        run: cargo test --manifest-path src-tauri/Cargo.toml --all-targets --locked
+      - name: Check application targets
+        run: cargo check --manifest-path src-tauri/Cargo.toml --all-targets --locked
