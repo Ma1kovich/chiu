@@ -11,6 +11,15 @@ Chiù uses [Semantic Versioning](https://semver.org/). Stable tags use
 Release notes belong in GitHub Releases. The project intentionally does not
 maintain a handwritten `CHANGELOG.md`.
 
+To make a release, run the **Release** workflow from the GitHub Actions page and
+enter the new version without a `v` prefix. The workflow updates
+`src-tauri/Cargo.toml` and `src-tauri/Cargo.lock`, commits the version to the
+default branch, creates the matching `v` tag, builds both desktop packages, and
+creates a draft GitHub release with generated notes and SHA-256 checksums.
+Review the draft before publishing it. The workflow currently stages unsigned
+artifacts; do not publish the draft until macOS ad-hoc signing has been
+integrated and validated.
+
 A release provides:
 
 - a Windows 11 x64 installer; and
