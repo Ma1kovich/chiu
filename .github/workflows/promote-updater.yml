@@ -65,8 +65,13 @@ jobs:
           test -s "$RUNNER_TEMP/$windows_signature"
           test -s "$RUNNER_TEMP/$macos"
           test -s "$RUNNER_TEMP/$macos_signature"
-          public_key=$(jq -r '.plugins.updater.pubkey' src-tauri/tauri.conf.json)
-          test -n "$public_key"
+          key_file=$(jq -er '.plugins.updater.pubkey' src-tauri/tauri.conf.json | base64 --decode)
+          comment="${key_file%%$'\n'*}"
+          public_key="${key_file#*$'\n'}"
+          test "$comment" != "$key_file"
+          [[ "$comment" == 'untrusted comment: minisign public key: '* ]]
+          [[ "$public_key" == RW* ]]
+          [[ "$public_key" != *$'\n'* ]]
           minisign -Vm "$RUNNER_TEMP/$windows" -x "$RUNNER_TEMP/$windows_signature" -P "$public_key"
           minisign -Vm "$RUNNER_TEMP/$macos" -x "$RUNNER_TEMP/$macos_signature" -P "$public_key"
 

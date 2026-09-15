@@ -248,8 +248,13 @@ jobs:
           test "${#macos[@]}" -eq 1
           test "${#macos_updater[@]}" -eq 1
           test "${#macos_updater_signatures[@]}" -eq 1
-          public_key=$(jq -r '.plugins.updater.pubkey' src-tauri/tauri.conf.json)
-          test -n "$public_key"
+          key_file=$(jq -er '.plugins.updater.pubkey' src-tauri/tauri.conf.json | base64 --decode)
+          comment="${key_file%%$'\n'*}"
+          public_key="${key_file#*$'\n'}"
+          test "$comment" != "$key_file"
+          [[ "$comment" == 'untrusted comment: minisign public key: '* ]]
+          [[ "$public_key" == RW* ]]
+          [[ "$public_key" != *$'\n'* ]]
           minisign -Vm "${windows[0]}" -x "${windows_signatures[0]}" -P "$public_key"
           minisign -Vm "${macos_updater[0]}" -x "${macos_updater_signatures[0]}" -P "$public_key"
           sha256sum "${windows[0]}" "${windows_signatures[0]}" "${macos[0]}" "${macos_updater[0]}" "${macos_updater_signatures[0]}" | sed 's#assets/##' | LC_ALL=C sort > assets/SHA256SUMS.txt
