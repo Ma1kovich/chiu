@@ -9,10 +9,12 @@ protection. An optional detail or warning explains the most relevant reason.
 Chiù's macOS package uses ad-hoc signing and is not notarized, so it may require
 one explicit Gatekeeper approval:
 
-1. Confirm that the package came from the project's GitHub Releases page.
-2. Try to open Chiù once and close the warning.
-3. Open **System Settings → Privacy & Security**.
-4. Choose **Open Anyway** for Chiù, then confirm **Open**.
+1. Confirm that the disk image came from the project's GitHub Releases page.
+2. Mount it, drag `Chiù.app` to its `Applications` shortcut, and eject the disk
+   image.
+3. Try to open Chiù once and close the warning.
+4. Open **System Settings → Privacy & Security**.
+5. Choose **Open Anyway** for Chiù, then confirm **Open**.
 
 Follow [Apple's current instructions](https://support.apple.com/en-gb/102445).
 Do not disable Gatekeeper or remove quarantine attributes with a command.
