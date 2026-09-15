@@ -16,9 +16,11 @@ enter the new version without a `v` prefix. The workflow updates
 `src-tauri/Cargo.toml` and `src-tauri/Cargo.lock`, commits the version to the
 default branch, creates the matching `v` tag, builds both desktop packages, and
 creates a draft GitHub release with generated notes and SHA-256 checksums.
-Review the draft before publishing it. The workflow currently stages unsigned
-artifacts; do not publish the draft until macOS ad-hoc signing has been
-integrated and validated.
+Review the draft before publishing it. The Windows installer is unsigned. The
+universal macOS archive is ad-hoc signed: it seals the code, but does not
+identify a trusted publisher and is neither Developer ID signed nor notarized.
+Do not publish the draft until it has been downloaded and first-launched on a
+supported Mac using the Gatekeeper approval path below.
 
 A release provides:
 
