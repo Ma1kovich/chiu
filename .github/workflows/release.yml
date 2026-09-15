@@ -136,20 +136,47 @@ jobs:
           path: ${{ runner.temp }}/chiu_${{ inputs.version }}_windows_x64_unsigned-setup.exe
           if-no-files-found: error
           retention-days: 1
-      - name: Stage the macOS application archive
+      - name: Create and validate the macOS disk image
         if: runner.os == 'macOS'
         env:
           VERSION: ${{ inputs.version }}
         run: |
-          archives=(src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz)
-          test "${#archives[@]}" -eq 1
-          cp "${archives[0]}" "$RUNNER_TEMP/chiu_${VERSION}_darwin_universal_adhoc.app.tar.gz"
-      - name: Upload the staged macOS application archive
+          application='src-tauri/target/universal-apple-darwin/release/bundle/macos/Chiù.app'
+          test -d "$application"
+
+          staging_directory=$(mktemp -d "$RUNNER_TEMP/chiu-disk-image.XXXXXX")
+          disk_image_root="$staging_directory/Chiù"
+          mkdir "$disk_image_root"
+          ditto "$application" "$disk_image_root/Chiù.app"
+          ln -s /Applications "$disk_image_root/Applications"
+
+          artifact_path="$RUNNER_TEMP/chiu_${VERSION}_darwin_universal_adhoc.dmg"
+          hdiutil create -fs HFS+ -volname 'Chiù' -srcfolder "$disk_image_root" -format UDZO -ov "$artifact_path"
+          hdiutil verify "$artifact_path"
+
+          mount_directory=$(mktemp -d "$RUNNER_TEMP/chiu-release-mount.XXXXXX")
+          detach_disk_image() {
+            hdiutil detach "$mount_directory" -quiet || true
+            rmdir "$mount_directory" || true
+          }
+          trap detach_disk_image EXIT
+
+          hdiutil attach "$artifact_path" -nobrowse -readonly -mountpoint "$mount_directory"
+          mounted_application="$mount_directory/Chiù.app"
+          mounted_executable="$mounted_application/Contents/MacOS/chiu"
+          test -d "$mounted_application"
+          test -L "$mount_directory/Applications"
+          test "$(readlink "$mount_directory/Applications")" = /Applications
+          test -f "$mounted_executable"
+          codesign --verify --deep --strict --verbose=2 "$mounted_application"
+          codesign --display --verbose=4 "$mounted_application" 2>&1 | grep -Fqx 'Signature=adhoc'
+          lipo "$mounted_executable" -verify_arch arm64 x86_64
+      - name: Upload the validated macOS disk image
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: release-macos-application-archive
-          path: ${{ runner.temp }}/chiu_${{ inputs.version }}_darwin_universal_adhoc.app.tar.gz
+          name: release-macos-disk-image
+          path: ${{ runner.temp }}/chiu_${{ inputs.version }}_darwin_universal_adhoc.dmg
           if-no-files-found: error
           retention-days: 1
 
@@ -172,7 +199,7 @@ jobs:
           TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           windows=(assets/*_windows_x64_unsigned-setup.exe)
-          macos=(assets/*_darwin_universal_adhoc.app.tar.gz)
+          macos=(assets/*_darwin_universal_adhoc.dmg)
           test "${#windows[@]}" -eq 1
           test "${#macos[@]}" -eq 1
           sha256sum "${windows[0]}" "${macos[0]}" | sed 's#assets/##' | LC_ALL=C sort > assets/SHA256SUMS.txt
@@ -184,7 +211,7 @@ jobs:
               --title "Chiù $TAG"
               --draft
               --generate-notes
-              --notes "The macOS archive is ad-hoc signed. It is not signed with an Apple Developer ID and is not notarized. macOS may require approval in System Settings → Privacy & Security → Open Anyway."
+              --notes "The application in the macOS disk image is ad-hoc signed. It is not signed with an Apple Developer ID and is not notarized. Mount the disk image and drag Chiù.app to Applications. macOS may require approval in System Settings → Privacy & Security → Open Anyway."
             )
             if [[ "$TAG" == *-* ]]; then
               arguments+=(--prerelease)

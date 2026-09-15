@@ -68,7 +68,9 @@ launch at login, optional updates, diagnostics, logs, and application details.
 ## Download and installation
 
 Published downloads and release notes appear on
-[GitHub Releases](https://github.com/Ma1kovich/chiu/releases).
+[GitHub Releases](https://github.com/Ma1kovich/chiu/releases). On macOS, mount
+the disk image, drag `Chiù.app` to its `Applications` shortcut, then eject the
+disk image.
 
 On macOS, the first launch may require one approval through **System Settings →
 Privacy & Security → Open Anyway**. Never disable Gatekeeper to install Chiù.

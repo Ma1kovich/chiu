@@ -82,18 +82,22 @@ The [release workflow](../.github/workflows/release.yml) is started manually
 with a new version number. It commits and tags that version, then builds:
 
 - an unsigned Windows 11 x64 NSIS installer; and
-- an ad-hoc signed universal macOS application archive.
+- an ad-hoc signed universal macOS disk image.
 
-Before upload, the workflow verifies the complete macOS application signature
-and confirms that its executable includes both Apple Silicon and Intel slices.
-It then creates a draft GitHub release, generates release notes, and adds
-SHA-256 checksums. Review and complete platform validation before publishing
-the draft.
+Before upload, the workflow verifies the disk image's integrity, mounts it,
+checks that it contains `Chiù.app` and an `Applications` shortcut, verifies the
+complete application signature, and confirms that its executable includes both
+Apple Silicon and Intel slices. It then creates a draft GitHub release,
+generates release notes, and adds SHA-256 checksums. Review and complete
+platform validation before publishing the draft.
 
-Successful packaging does not prove Gatekeeper approval, installation, first
-launch, tray/menu rendering, single-instance behavior, actual sleep prevention,
-updater integration, or clean process exit. Those behaviors require
-real-machine validation.
+Successful packaging does not prove drag installation, Gatekeeper approval,
+first launch, tray/menu rendering, single-instance behavior, actual sleep
+prevention, updater integration, or clean process exit. Real-machine macOS
+validation must download the disk image normally, mount it, drag `Chiù.app` to
+the `Applications` shortcut, and exercise the normal Gatekeeper approval path
+when macOS blocks its first launch. Those behaviors require real-machine
+validation.
 
 ## Recording validation
 

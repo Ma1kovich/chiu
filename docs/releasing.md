@@ -17,24 +17,28 @@ enter the new version without a `v` prefix. The workflow updates
 default branch, creates the matching `v` tag, builds both desktop packages, and
 creates a draft GitHub release with generated notes and SHA-256 checksums.
 Review the draft before publishing it. The Windows installer is unsigned. The
-universal macOS archive is ad-hoc signed: it seals the code, but does not
-identify a trusted publisher and is neither Developer ID signed nor notarized.
-Do not publish the draft until it has been downloaded and first-launched on a
-supported Mac using the Gatekeeper approval path below.
+universal macOS disk image contains an ad-hoc signed application: it seals the
+code, but does not identify a trusted publisher and is neither Developer ID
+signed nor notarized. Do not publish the draft until its disk image has been
+downloaded normally, mounted, installed by dragging `Chiù.app` to the
+`Applications` shortcut, and first-launched on a supported Mac using the
+Gatekeeper approval path below.
 
 A release provides:
 
 - a Windows 11 x64 installer; and
-- a universal macOS application/package with Intel and Apple Silicon slices.
+- a universal macOS disk image containing an application with Intel and Apple
+  Silicon slices.
 
 ## macOS v0.1 policy
 
 The v0.1 macOS artifact uses ad-hoc signing rather than Apple Developer ID
 signing and is not notarized.
 
-After downloading Chiù from GitHub Releases, macOS may require one approval
-through **System Settings → Privacy & Security → Open Anyway**. Release
-documentation must use the normal
+After downloading Chiù from GitHub Releases, mount the disk image, drag
+`Chiù.app` to its `Applications` shortcut, then eject the disk image. macOS may
+require one approval through **System Settings → Privacy & Security → Open
+Anyway** when opening the installed application. Release documentation must use the normal
 [Apple-supported flow](https://support.apple.com/en-gb/102445), never a command
 that disables Gatekeeper or strips quarantine metadata.
 
