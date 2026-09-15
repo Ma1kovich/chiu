@@ -78,17 +78,15 @@ from one supported operating system does not establish behavior on the other.
 
 ## Packaging validation
 
-The [packaging validation workflow](../.github/workflows/development-packages.yml)
-can be started manually and also runs on pull requests that change packaging
-inputs. It builds:
+The [release workflow](../.github/workflows/release.yml) is started manually
+with a new version number. It commits and tags that version, then builds:
 
-- a Windows 11 x64 NSIS installer; and
-- a universal macOS application archive containing Intel and Apple Silicon
-  slices.
+- an unsigned Windows 11 x64 NSIS installer; and
+- an unsigned universal macOS application archive.
 
-Artifacts include the workflow run and attempt in their names and are retained
-for 30 days. The workflow validates expected file structure and architecture
-before upload.
+The workflow creates a draft GitHub release, generates release notes, and adds
+SHA-256 checksums. Review and complete platform validation before publishing the
+draft.
 
 Successful packaging does not prove installation, first launch, tray/menu
 rendering, single-instance behavior, actual sleep prevention, updater

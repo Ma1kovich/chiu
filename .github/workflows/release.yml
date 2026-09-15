@@ -1,0 +1,142 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: SemVer without the v prefix (for example, 0.1.0-alpha.1)
+        required: true
+        type: string
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: github.actor == github.repository_owner
+    runs-on: macos-26
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.prepare.outputs.sha }}
+      tag: ${{ steps.prepare.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Prepare the version commit and tag
+        id: prepare
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          test "$GITHUB_REF_NAME" = "$DEFAULT_BRANCH"
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]
+
+          tag="v$VERSION"
+          current=$(cargo metadata --manifest-path src-tauri/Cargo.toml --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "chiu") | .version')
+          if git rev-parse --verify --quiet "refs/tags/$tag"; then
+            git checkout --detach "$tag"
+            tagged=$(cargo metadata --manifest-path src-tauri/Cargo.toml --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "chiu") | .version')
+            test "$tagged" = "$VERSION"
+            {
+              echo "sha=$(git rev-parse HEAD)"
+              echo "tag=$tag"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          test "$current" != "$VERSION"
+
+          perl -0pi -e 's/^version = "[^"]+"$/version = "$ENV{VERSION}"/m' src-tauri/Cargo.toml
+          cargo update --manifest-path src-tauri/Cargo.toml -p chiu
+          resolved=$(cargo metadata --manifest-path src-tauri/Cargo.toml --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "chiu") | .version')
+          test "$resolved" = "$VERSION"
+
+          test "$(git diff --name-only | sort)" = $'src-tauri/Cargo.lock\nsrc-tauri/Cargo.toml'
+          git diff --check
+          cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings
+          cargo test --manifest-path src-tauri/Cargo.toml --all-targets --locked
+          cargo check --manifest-path src-tauri/Cargo.toml --all-targets --locked
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src-tauri/Cargo.toml src-tauri/Cargo.lock
+          git commit -m "chore(release): v$VERSION"
+          git tag "$tag"
+
+          {
+            echo "sha=$(git rev-parse HEAD)"
+            echo "tag=$tag"
+            echo "push=true"
+          } >> "$GITHUB_OUTPUT"
+      - name: Push the version commit and tag
+        if: steps.prepare.outputs.push == 'true'
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          git remote set-url origin "https://x-access-token:${RELEASE_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --atomic origin HEAD:"$DEFAULT_BRANCH" "v$VERSION"
+
+  release:
+    needs: prepare
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-2025
+            args: --bundles nsis --ci --no-sign -- --locked
+          - platform: macos-26
+            args: --target universal-apple-darwin --bundles app --ci --no-sign -- --locked
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+      - name: Install macOS targets
+        if: runner.os == 'macOS'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.5.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: src-tauri
+          tagName: ${{ needs.prepare.outputs.tag }}
+          releaseName: Chiù ${{ needs.prepare.outputs.tag }}
+          generateReleaseNotes: true
+          releaseDraft: true
+          prerelease: ${{ contains(needs.prepare.outputs.tag, '-') }}
+          uploadUpdaterJson: false
+          uploadUpdaterSignatures: false
+          releaseAssetNamePattern: chiu_[version]_[platform]_[arch]_unsigned[setup][ext]
+          args: ${{ matrix.args }}
+
+  checksums:
+    needs: [prepare, release]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Add SHA-256 checksums
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          mkdir assets
+          gh release download "$TAG" --pattern '*.exe' --pattern '*.app.tar.gz' --dir assets
+          shopt -s nullglob
+          windows=(assets/*.exe)
+          macos=(assets/*.app.tar.gz)
+          test "${#windows[@]}" -eq 1
+          test "${#macos[@]}" -eq 1
+          sha256sum "${windows[0]}" "${macos[0]}" | sed 's#assets/##' | LC_ALL=C sort > assets/SHA256SUMS.txt
+          gh release upload "$TAG" assets/SHA256SUMS.txt --clobber

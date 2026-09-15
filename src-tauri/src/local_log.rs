@@ -645,7 +645,10 @@ mod tests {
 
         assert_eq!(
             fs::read_to_string(directory.0.join(CURRENT_FILE)).unwrap(),
-            "2026-08-10T12:00:00Z INFO process.started version=0.1.0\n"
+            format!(
+                "2026-08-10T12:00:00Z INFO process.started version={}\n",
+                env!("CARGO_PKG_VERSION")
+            )
         );
         assert_eq!(log.health(), LoggingHealth::Available);
         assert_eq!(log.directory(), Some(directory.0.as_path()));
