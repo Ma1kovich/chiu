@@ -1,0 +1,178 @@
+name: Promote updater metadata
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: SemVer without the v prefix (for example, 0.1.0-alpha.2)
+        required: true
+        type: string
+
+concurrency:
+  group: updater-metadata
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    if: github.actor == github.repository_owner
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: v${{ inputs.version }}
+          persist-credentials: false
+      - name: Install the updater signature verifier
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes minisign
+      - name: Verify public updater artifacts and promote metadata
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]
+          tag="v$VERSION"
+          test "$(gh release view "$tag" --json isDraft --jq .isDraft)" = false
+          release_is_prerelease=$(gh release view "$tag" --json isPrerelease --jq .isPrerelease)
+          release_version="${VERSION%%+*}"
+          if [[ "$release_version" == *-* ]]; then
+            test "$release_is_prerelease" = true
+          else
+            test "$release_is_prerelease" = false
+          fi
+
+          base_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/$tag"
+          windows="chiu_${VERSION}_windows_x64_unsigned-setup.exe"
+          windows_signature="$windows.sig"
+          macos="chiu_${VERSION}_darwin_universal_adhoc.app.tar.gz"
+          macos_signature="$macos.sig"
+
+          fetch_asset() {
+            local url="$1"
+            local name="$2"
+            curl --fail --location --retry 6 --retry-all-errors --retry-delay 5 \
+              --output "$RUNNER_TEMP/$name" "$url/$name"
+          }
+
+          fetch_asset "$base_url" "$windows"
+          fetch_asset "$base_url" "$windows_signature"
+          fetch_asset "$base_url" "$macos"
+          fetch_asset "$base_url" "$macos_signature"
+          test -s "$RUNNER_TEMP/$windows"
+          test -s "$RUNNER_TEMP/$windows_signature"
+          test -s "$RUNNER_TEMP/$macos"
+          test -s "$RUNNER_TEMP/$macos_signature"
+          key_file=$(jq -er '.plugins.updater.pubkey' src-tauri/tauri.conf.json | base64 --decode)
+          comment="${key_file%%$'\n'*}"
+          public_key="${key_file#*$'\n'}"
+          test "$comment" != "$key_file"
+          [[ "$comment" == 'untrusted comment: minisign public key: '* ]]
+          [[ "$public_key" == RW* ]]
+          [[ "$public_key" != *$'\n'* ]]
+          minisign -Vm "$RUNNER_TEMP/$windows" -x "$RUNNER_TEMP/$windows_signature" -P "$public_key"
+          minisign -Vm "$RUNNER_TEMP/$macos" -x "$RUNNER_TEMP/$macos_signature" -P "$public_key"
+
+          metadata="$RUNNER_TEMP/latest.json"
+          jq -n \
+            --arg version "$VERSION" \
+            --arg published_at "$(date --utc +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg windows_url "$base_url/$windows" \
+            --arg macos_url "$base_url/$macos" \
+            --rawfile windows_signature "$RUNNER_TEMP/$windows_signature" \
+            --rawfile macos_signature "$RUNNER_TEMP/$macos_signature" \
+            '{
+              version: $version,
+              pub_date: $published_at,
+              platforms: {
+                "windows-x86_64": {
+                  url: $windows_url,
+                  signature: $windows_signature
+                },
+                "darwin-aarch64": {
+                  url: $macos_url,
+                  signature: $macos_signature
+                },
+                "darwin-x86_64": {
+                  url: $macos_url,
+                  signature: $macos_signature
+                }
+              }
+            }' > "$metadata"
+
+          jq -e \
+            --arg version "$VERSION" \
+            --arg windows_url "$base_url/$windows" \
+            --arg macos_url "$base_url/$macos" \
+            --rawfile windows_signature "$RUNNER_TEMP/$windows_signature" \
+            --rawfile macos_signature "$RUNNER_TEMP/$macos_signature" \
+            '.version == $version
+              and (.platforms | keys == ["darwin-aarch64", "darwin-x86_64", "windows-x86_64"])
+              and .platforms["windows-x86_64"] == {url: $windows_url, signature: $windows_signature}
+              and .platforms["darwin-aarch64"] == {url: $macos_url, signature: $macos_signature}
+              and .platforms["darwin-x86_64"] == {url: $macos_url, signature: $macos_signature}' \
+            "$metadata"
+
+          if gh release view updater >/dev/null 2>&1; then
+            test "$(gh release view updater --json isDraft,isPrerelease --jq '.isDraft == false and .isPrerelease == true')" = true
+            current_version=$(curl --fail --location --retry 6 --retry-all-errors --retry-delay 5 \
+              'https://github.com/'"$GITHUB_REPOSITORY"'/releases/download/updater/latest.json' | jq -er .version)
+            python3 - "$current_version" "$VERSION" <<'PY'
+          import re
+          import sys
+
+          semver = re.compile(
+              r"^v?(?P<core>\d+\.\d+\.\d+)(?:-(?P<pre>[0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$"
+          )
+
+          def parse(version):
+              match = semver.fullmatch(version)
+              if match is None:
+                  raise SystemExit(f"metadata has an invalid version: {version}")
+              return tuple(map(int, match["core"].split("."))), match["pre"]
+
+          def compare_prerelease(left, right):
+              if left is None:
+                  return 0 if right is None else 1
+              if right is None:
+                  return -1
+              for left_identifier, right_identifier in zip(left.split("."), right.split(".")):
+                  if left_identifier == right_identifier:
+                      continue
+                  left_numeric = left_identifier.isdecimal()
+                  right_numeric = right_identifier.isdecimal()
+                  if left_numeric and right_numeric:
+                      return (int(left_identifier) > int(right_identifier)) - (int(left_identifier) < int(right_identifier))
+                  if left_numeric:
+                      return -1
+                  if right_numeric:
+                      return 1
+                  return (left_identifier > right_identifier) - (left_identifier < right_identifier)
+              return (len(left.split(".")) > len(right.split("."))) - (len(left.split(".")) < len(right.split(".")))
+
+          current_core, current_pre = parse(sys.argv[1])
+          requested_core, requested_pre = parse(sys.argv[2])
+          comparison = (current_core > requested_core) - (current_core < requested_core)
+          if comparison == 0:
+              comparison = compare_prerelease(current_pre, requested_pre)
+          if comparison > 0:
+              raise SystemExit("refusing to replace updater metadata with an older version")
+          PY
+          else
+            gh release create updater --target "$tag" --title 'Chiù updater metadata' --prerelease \
+              --notes 'This release supplies updater metadata. Download application releases from their versioned releases.'
+          fi
+
+          gh release upload updater "$metadata#latest.json" --clobber
+
+          metadata_url='https://github.com/'"$GITHUB_REPOSITORY"'/releases/download/updater/latest.json'
+          for _ in {1..6}; do
+            if curl --fail --location --output "$RUNNER_TEMP/served-latest.json" "$metadata_url" \
+              && cmp --silent "$metadata" "$RUNNER_TEMP/served-latest.json"; then
+              exit 0
+            fi
+            sleep 5
+          done
+          exit 1

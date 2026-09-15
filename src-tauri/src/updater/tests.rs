@@ -776,6 +776,39 @@ fn updater_configuration_requires_complete_safe_release_inputs() {
 }
 
 #[test]
+fn shipped_updater_configuration_uses_the_prerelease_metadata_channel() {
+    let configuration: serde_json::Value =
+        serde_json::from_str(include_str!("../../tauri.conf.json")).unwrap();
+    let updater = configuration
+        .get("plugins")
+        .and_then(|plugins| plugins.get("updater"));
+
+    assert!(matches!(
+        configured_updater(updater).unwrap(),
+        ConfiguredUpdater::Configured
+    ));
+    assert_eq!(
+        configuration
+            .pointer("/bundle/createUpdaterArtifacts")
+            .and_then(serde_json::Value::as_bool),
+        Some(true)
+    );
+    assert_eq!(
+        updater
+            .and_then(|updater| updater.get("endpoints"))
+            .and_then(serde_json::Value::as_array)
+            .map(|endpoints| endpoints.as_slice()),
+        Some(
+            [serde_json::Value::String(
+                "https://github.com/Ma1kovich/chiu/releases/download/updater/latest.json"
+                    .to_owned()
+            )]
+            .as_slice()
+        )
+    );
+}
+
+#[test]
 fn remote_version_and_progress_are_bounded_for_presentation() {
     assert_eq!(
         display_version("1.2.3-beta+4"),

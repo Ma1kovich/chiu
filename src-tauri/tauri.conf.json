@@ -6,6 +6,7 @@
     "windows": []
   },
   "bundle": {
+    "createUpdaterArtifacts": true,
     "macOS": {
       "signingIdentity": "-"
     },
@@ -14,5 +15,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEY3MkM2RURDRDM4REQ1ODgKUldTSTFZM1QzRzRzOTcwQW5MRWVPSjBNeUhaOGhpR3Z3MFFOWUFrak1oQmY3ZnhyYXloZS9DQlkK",
+      "endpoints": [
+        "https://github.com/Ma1kovich/chiu/releases/download/updater/latest.json"
+      ]
+    }
   }
 }

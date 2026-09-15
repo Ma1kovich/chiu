@@ -90,7 +90,7 @@ jobs:
       matrix:
         include:
           - platform: windows-2025
-            args: --bundles nsis --ci --no-sign -- --locked
+            args: --bundles nsis --ci -- --locked
           - platform: macos-26
             args: --target universal-apple-darwin --bundles app --ci -- --locked
     runs-on: ${{ matrix.platform }}
@@ -103,6 +103,9 @@ jobs:
         if: runner.os == 'macOS'
         run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
       - uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.5.0
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: src-tauri
           uploadUpdaterJson: false
@@ -127,13 +130,17 @@ jobs:
         run: |
           installers=(src-tauri/target/release/bundle/nsis/*-setup.exe)
           test "${#installers[@]}" -eq 1
+          test -f "${installers[0]}.sig"
           cp "${installers[0]}" "$RUNNER_TEMP/chiu_${VERSION}_windows_x64_unsigned-setup.exe"
+          cp "${installers[0]}.sig" "$RUNNER_TEMP/chiu_${VERSION}_windows_x64_unsigned-setup.exe.sig"
       - name: Upload the staged Windows installer
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-windows-installer
-          path: ${{ runner.temp }}/chiu_${{ inputs.version }}_windows_x64_unsigned-setup.exe
+          path: |
+            ${{ runner.temp }}/chiu_${{ inputs.version }}_windows_x64_unsigned-setup.exe
+            ${{ runner.temp }}/chiu_${{ inputs.version }}_windows_x64_unsigned-setup.exe.sig
           if-no-files-found: error
           retention-days: 1
       - name: Create and validate the macOS disk image
@@ -171,12 +178,36 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$mounted_application"
           codesign --display --verbose=4 "$mounted_application" 2>&1 | grep -Fqx 'Signature=adhoc'
           lipo "$mounted_executable" -verify_arch arm64 x86_64
+
+          updater_archive='src-tauri/target/universal-apple-darwin/release/bundle/macos/Chiù.app.tar.gz'
+          test -f "$updater_archive"
+          test -f "$updater_archive.sig"
+          updater_directory=$(mktemp -d "$RUNNER_TEMP/chiu-updater-archive.XXXXXX")
+          tar -xzf "$updater_archive" -C "$updater_directory"
+          updater_application="$updater_directory/Chiù.app"
+          updater_executable="$updater_application/Contents/MacOS/chiu"
+          test -f "$updater_executable"
+          codesign --verify --deep --strict --verbose=2 "$updater_application"
+          codesign --display --verbose=4 "$updater_application" 2>&1 | grep -Fqx 'Signature=adhoc'
+          lipo "$updater_executable" -verify_arch arm64 x86_64
+          cp "$updater_archive" "$RUNNER_TEMP/chiu_${VERSION}_darwin_universal_adhoc.app.tar.gz"
+          cp "$updater_archive.sig" "$RUNNER_TEMP/chiu_${VERSION}_darwin_universal_adhoc.app.tar.gz.sig"
       - name: Upload the validated macOS disk image
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-macos-disk-image
           path: ${{ runner.temp }}/chiu_${{ inputs.version }}_darwin_universal_adhoc.dmg
+          if-no-files-found: error
+          retention-days: 1
+      - name: Upload the validated macOS updater payload
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-macos-updater
+          path: |
+            ${{ runner.temp }}/chiu_${{ inputs.version }}_darwin_universal_adhoc.app.tar.gz
+            ${{ runner.temp }}/chiu_${{ inputs.version }}_darwin_universal_adhoc.app.tar.gz.sig
           if-no-files-found: error
           retention-days: 1
 
@@ -186,23 +217,47 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
       - name: Download verified release artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: release-*
           merge-multiple: true
           path: assets
+      - name: Install the updater signature verifier
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes minisign
       - name: Publish release artifacts and SHA-256 checksums
         env:
           GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.prepare.outputs.tag }}
+          VERSION: ${{ inputs.version }}
         run: |
           windows=(assets/*_windows_x64_unsigned-setup.exe)
+          windows_signatures=(assets/*_windows_x64_unsigned-setup.exe.sig)
           macos=(assets/*_darwin_universal_adhoc.dmg)
+          macos_updater=(assets/*_darwin_universal_adhoc.app.tar.gz)
+          macos_updater_signatures=(assets/*_darwin_universal_adhoc.app.tar.gz.sig)
           test "${#windows[@]}" -eq 1
+          test "${#windows_signatures[@]}" -eq 1
           test "${#macos[@]}" -eq 1
-          sha256sum "${windows[0]}" "${macos[0]}" | sed 's#assets/##' | LC_ALL=C sort > assets/SHA256SUMS.txt
+          test "${#macos_updater[@]}" -eq 1
+          test "${#macos_updater_signatures[@]}" -eq 1
+          key_file=$(jq -er '.plugins.updater.pubkey' src-tauri/tauri.conf.json | base64 --decode)
+          comment="${key_file%%$'\n'*}"
+          public_key="${key_file#*$'\n'}"
+          test "$comment" != "$key_file"
+          [[ "$comment" == 'untrusted comment: minisign public key: '* ]]
+          [[ "$public_key" == RW* ]]
+          [[ "$public_key" != *$'\n'* ]]
+          minisign -Vm "${windows[0]}" -x "${windows_signatures[0]}" -P "$public_key"
+          minisign -Vm "${macos_updater[0]}" -x "${macos_updater_signatures[0]}" -P "$public_key"
+          sha256sum "${windows[0]}" "${windows_signatures[0]}" "${macos[0]}" "${macos_updater[0]}" "${macos_updater_signatures[0]}" | sed 's#assets/##' | LC_ALL=C sort > assets/SHA256SUMS.txt
 
           if gh release view "$TAG" >/dev/null 2>&1; then
             test "$(gh release view "$TAG" --json isDraft --jq .isDraft)" = true
@@ -213,7 +268,8 @@ jobs:
               --generate-notes
               --notes "The application in the macOS disk image is ad-hoc signed. It is not signed with an Apple Developer ID and is not notarized. Mount the disk image and drag Chiù.app to Applications. macOS may require approval in System Settings → Privacy & Security → Open Anyway."
             )
-            if [[ "$TAG" == *-* ]]; then
+            release_version="${VERSION%%+*}"
+            if [[ "$release_version" == *-* ]]; then
               arguments+=(--prerelease)
             fi
             gh release create "$TAG" "${arguments[@]}"
@@ -221,5 +277,8 @@ jobs:
 
           gh release delete-asset "$TAG" SHA256SUMS.txt --yes || true
           gh release upload "$TAG" "${windows[0]}" --clobber
+          gh release upload "$TAG" "${windows_signatures[0]}" --clobber
           gh release upload "$TAG" "${macos[0]}" --clobber
+          gh release upload "$TAG" "${macos_updater[0]}" --clobber
+          gh release upload "$TAG" "${macos_updater_signatures[0]}" --clobber
           gh release upload "$TAG" assets/SHA256SUMS.txt --clobber

@@ -30,6 +30,11 @@ A release provides:
 - a universal macOS disk image containing an application with Intel and Apple
   Silicon slices.
 
+When updater support is configured, the draft also contains the signed Windows
+installer, the signed universal macOS updater archive, and their detached
+signatures. These are not an authorization to update until the versioned
+release has passed real-machine validation and has been published.
+
 ## macOS v0.1 policy
 
 The v0.1 macOS artifact uses ad-hoc signing rather than Apple Developer ID
@@ -51,6 +56,20 @@ requires explicit confirmation in the active session.
 An updater-enabled release requires signed updater artifacts, published
 metadata, protected signing keys, and an exercised N-to-N+1 update on both
 supported platforms.
+
+After publishing a validated versioned release, run the **Promote updater
+metadata** workflow with that version. It verifies that the public Windows and
+macOS updater payloads and signatures are available, then updates the
+prerelease-only metadata endpoint at
+`releases/download/updater/latest.json`. The metadata references immutable
+versioned assets, and maps the one universal macOS archive to both Intel and
+Apple Silicon updater targets. The metadata asset can briefly be unavailable
+while GitHub replaces it; update checks must treat that as a retryable failure,
+never as a successful update.
+
+Do not promote metadata before the release is public. The updater release is
+only a pointer for installed applications; it is not a product release and
+must remain a GitHub prerelease.
 
 ## Release validation
 
