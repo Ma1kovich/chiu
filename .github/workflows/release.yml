@@ -85,8 +85,6 @@ jobs:
 
   release:
     needs: prepare
-    permissions:
-      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -94,7 +92,7 @@ jobs:
           - platform: windows-2025
             args: --bundles nsis --ci --no-sign -- --locked
           - platform: macos-26
-            args: --target universal-apple-darwin --bundles app --ci --no-sign -- --locked
+            args: --target universal-apple-darwin --bundles app --ci -- --locked
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -105,19 +103,55 @@ jobs:
         if: runner.os == 'macOS'
         run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
       - uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.5.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: src-tauri
-          tagName: ${{ needs.prepare.outputs.tag }}
-          releaseName: Chiù ${{ needs.prepare.outputs.tag }}
-          generateReleaseNotes: true
-          releaseDraft: true
-          prerelease: ${{ contains(needs.prepare.outputs.tag, '-') }}
           uploadUpdaterJson: false
           uploadUpdaterSignatures: false
-          releaseAssetNamePattern: chiu_[version]_[platform]_[arch]_unsigned[setup][ext]
           args: ${{ matrix.args }}
+      - name: Verify the macOS application signature and architectures
+        if: runner.os == 'macOS'
+        run: |
+          application='src-tauri/target/universal-apple-darwin/release/bundle/macos/Chiù.app'
+          executable="$application/Contents/MacOS/chiu"
+          test -d "$application"
+          test -f "$executable"
+          codesign --verify --deep --strict --verbose=2 "$application"
+          codesign --display --verbose=4 "$application" 2>&1 | grep -Fqx 'Signature=adhoc'
+          lipo "$executable" -verify_arch arm64 x86_64
+          lipo -archs "$executable"
+      - name: Stage the Windows installer
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          installers=(src-tauri/target/release/bundle/nsis/*-setup.exe)
+          test "${#installers[@]}" -eq 1
+          cp "${installers[0]}" "$RUNNER_TEMP/chiu_${VERSION}_windows_x64_unsigned-setup.exe"
+      - name: Upload the staged Windows installer
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-windows-installer
+          path: ${{ runner.temp }}/chiu_${{ inputs.version }}_windows_x64_unsigned-setup.exe
+          if-no-files-found: error
+          retention-days: 1
+      - name: Stage the macOS application archive
+        if: runner.os == 'macOS'
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          archives=(src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz)
+          test "${#archives[@]}" -eq 1
+          cp "${archives[0]}" "$RUNNER_TEMP/chiu_${VERSION}_darwin_universal_adhoc.app.tar.gz"
+      - name: Upload the staged macOS application archive
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-macos-application-archive
+          path: ${{ runner.temp }}/chiu_${{ inputs.version }}_darwin_universal_adhoc.app.tar.gz
+          if-no-files-found: error
+          retention-days: 1
 
   checksums:
     needs: [prepare, release]
@@ -125,18 +159,40 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Add SHA-256 checksums
+      - name: Download verified release artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: assets
+      - name: Publish release artifacts and SHA-256 checksums
         env:
           GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.prepare.outputs.tag }}
         run: |
-          mkdir assets
-          gh release download "$TAG" --pattern '*.exe' --pattern '*.app.tar.gz' --dir assets
-          shopt -s nullglob
-          windows=(assets/*.exe)
-          macos=(assets/*.app.tar.gz)
+          windows=(assets/*_windows_x64_unsigned-setup.exe)
+          macos=(assets/*_darwin_universal_adhoc.app.tar.gz)
           test "${#windows[@]}" -eq 1
           test "${#macos[@]}" -eq 1
           sha256sum "${windows[0]}" "${macos[0]}" | sed 's#assets/##' | LC_ALL=C sort > assets/SHA256SUMS.txt
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            test "$(gh release view "$TAG" --json isDraft --jq .isDraft)" = true
+          else
+            arguments=(
+              --title "Chiù $TAG"
+              --draft
+              --generate-notes
+              --notes "The macOS archive is ad-hoc signed. It is not signed with an Apple Developer ID and is not notarized. macOS may require approval in System Settings → Privacy & Security → Open Anyway."
+            )
+            if [[ "$TAG" == *-* ]]; then
+              arguments+=(--prerelease)
+            fi
+            gh release create "$TAG" "${arguments[@]}"
+          fi
+
+          gh release delete-asset "$TAG" SHA256SUMS.txt --yes || true
+          gh release upload "$TAG" "${windows[0]}" --clobber
+          gh release upload "$TAG" "${macos[0]}" --clobber
           gh release upload "$TAG" assets/SHA256SUMS.txt --clobber

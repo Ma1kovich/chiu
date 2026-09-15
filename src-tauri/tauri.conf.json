@@ -6,6 +6,9 @@
     "windows": []
   },
   "bundle": {
+    "macOS": {
+      "signingIdentity": "-"
+    },
     "icon": [
       "icons/icon.png",
       "icons/icon.icns",
