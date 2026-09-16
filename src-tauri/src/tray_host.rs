@@ -442,7 +442,7 @@ struct NativeMenu {
     threshold_presets: [CheckMenuItem; 3],
     custom_threshold: Option<CheckMenuItem>,
     grace_menu: Submenu,
-    grace_presets: [CheckMenuItem; 3],
+    grace_presets: [CheckMenuItem; 5],
     custom_grace: Option<CheckMenuItem>,
     battery: CheckMenuItem,
     settings: SettingsMenu,
@@ -794,8 +794,26 @@ struct DetectionMenu {
     threshold_presets: [CheckMenuItem; 3],
     custom_threshold: Option<CheckMenuItem>,
     grace_menu: Submenu,
-    grace_presets: [CheckMenuItem; 3],
+    grace_presets: [CheckMenuItem; 5],
     custom_grace: Option<CheckMenuItem>,
+}
+
+const GRACE_MENU_LABEL: &str = "Stop keeping awake after traffic drops";
+const GRACE_CHOICE_LABELS: [&str; 5] = [
+    "30 seconds",
+    "2 minutes",
+    "5 minutes",
+    "15 minutes",
+    "30 minutes",
+];
+
+fn grace_choice_spec() -> [(TrayCommand, &'static str); 5] {
+    std::array::from_fn(|index| {
+        (
+            TrayCommand::SetGrace(GracePreset::ALL[index]),
+            GRACE_CHOICE_LABELS[index],
+        )
+    })
 }
 
 fn build_detection(
@@ -838,16 +856,13 @@ fn build_detection(
         view.commands_enabled,
     )?;
     submenu.append(&threshold_menu)?;
+    let grace_choices = grace_choice_spec();
     let (grace_menu, grace_presets, custom_grace) = build_choices(
         app,
         "detection.grace",
-        "Grace period",
-        [
-            TrayCommand::SetGrace(GracePreset::Seconds30),
-            TrayCommand::SetGrace(GracePreset::Minutes2),
-            TrayCommand::SetGrace(GracePreset::Minutes5),
-        ],
-        ["30 seconds", "2 minutes", "5 minutes"],
+        GRACE_MENU_LABEL,
+        grace_choices.map(|(command, _)| command),
+        grace_choices.map(|(_, label)| label),
         &view.detection.grace,
         view.commands_enabled,
     )?;
@@ -867,27 +882,27 @@ fn build_detection(
     })
 }
 
-fn build_choices(
+fn build_choices<const N: usize>(
     app: &AppHandle,
     id: &str,
     label: &str,
-    commands: [TrayCommand; 3],
-    labels: [&str; 3],
-    view: &ChoiceView,
+    commands: [TrayCommand; N],
+    labels: [&str; N],
+    view: &ChoiceView<N>,
     enabled: bool,
-) -> tauri::Result<(Submenu, [CheckMenuItem; 3], Option<CheckMenuItem>)> {
+) -> tauri::Result<(Submenu, [CheckMenuItem; N], Option<CheckMenuItem>)> {
     let submenu = Submenu::with_id(app, id, label, enabled)?;
-    let preset = |index: usize| {
-        CheckMenuItem::with_id(
-            app,
-            commands[index].id(),
-            labels[index],
-            enabled,
-            view.checked[index],
-            None::<&str>,
-        )
-    };
-    let presets = [preset(0)?, preset(1)?, preset(2)?];
+    let entries = commands
+        .into_iter()
+        .zip(labels)
+        .zip(view.checked)
+        .map(|((command, label), checked)| {
+            CheckMenuItem::with_id(app, command.id(), label, enabled, checked, None::<&str>)
+        })
+        .collect::<tauri::Result<Vec<_>>>()?;
+    let presets: [CheckMenuItem; N] = entries
+        .try_into()
+        .unwrap_or_else(|_| unreachable!("one item is created for each choice"));
     for item in &presets {
         submenu.append(item)?;
     }
@@ -904,10 +919,10 @@ fn build_choices(
     Ok((submenu, presets, custom))
 }
 
-fn update_choices(
-    presets: &[CheckMenuItem; 3],
+fn update_choices<const N: usize>(
+    presets: &[CheckMenuItem; N],
     custom: Option<&CheckMenuItem>,
-    view: &ChoiceView,
+    view: &ChoiceView<N>,
 ) -> tauri::Result<()> {
     for (item, checked) in presets.iter().zip(view.checked) {
         item.set_checked(checked)?;

@@ -25,14 +25,26 @@ pub(crate) enum GracePreset {
     Seconds30,
     Minutes2,
     Minutes5,
+    Minutes15,
+    Minutes30,
 }
 
 impl GracePreset {
+    pub(crate) const ALL: [Self; 5] = [
+        Self::Seconds30,
+        Self::Minutes2,
+        Self::Minutes5,
+        Self::Minutes15,
+        Self::Minutes30,
+    ];
+
     pub(crate) const fn duration(self) -> Duration {
         match self {
             Self::Seconds30 => Duration::from_secs(30),
             Self::Minutes2 => Duration::from_secs(120),
             Self::Minutes5 => Duration::from_secs(300),
+            Self::Minutes15 => Duration::from_secs(900),
+            Self::Minutes30 => Duration::from_secs(1_800),
         }
     }
 }
@@ -88,7 +100,7 @@ macro_rules! command_vocabulary {
             }
         }
 
-        const ALL_COMMANDS: [TrayCommand; 29] = [
+        const ALL_COMMANDS: [TrayCommand; 31] = [
             $(TrayCommand::$command,)+
             $(TrayCommand::Manual(ManualSessionCommand::Start(
                 ManualSessionStartPreset::$start,
@@ -144,6 +156,8 @@ command_vocabulary! {
         Seconds30 => "detection.grace.30",
         Minutes2 => "detection.grace.120",
         Minutes5 => "detection.grace.300",
+        Minutes15 => "detection.grace.900",
+        Minutes30 => "detection.grace.1800",
     }
     final_command { Quit => "quit" }
 }
@@ -184,6 +198,8 @@ mod tests {
             "detection.grace.30",
             "detection.grace.120",
             "detection.grace.300",
+            "detection.grace.900",
+            "detection.grace.1800",
             "quit",
         ];
         let actual = ALL_COMMANDS.map(TrayCommand::id);

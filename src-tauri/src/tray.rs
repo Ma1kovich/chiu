@@ -72,8 +72,8 @@ pub(crate) enum KeepAwakeView {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct ChoiceView {
-    pub(crate) checked: [bool; 3],
+pub(crate) struct ChoiceView<const N: usize> {
+    pub(crate) checked: [bool; N],
     pub(crate) custom: Option<String>,
 }
 
@@ -82,8 +82,8 @@ pub(crate) struct DetectionView {
     pub(crate) state: String,
     pub(crate) receive_rate: Option<String>,
     pub(crate) power_source: String,
-    pub(crate) threshold: ChoiceView,
-    pub(crate) grace: ChoiceView,
+    pub(crate) threshold: ChoiceView<3>,
+    pub(crate) grace: ChoiceView<5>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -358,7 +358,7 @@ fn lifecycle_only_view(status: ApplicationStatus) -> TrayView {
                 custom: None,
             },
             grace: ChoiceView {
-                checked: [false; 3],
+                checked: [false; 5],
                 custom: None,
             },
         },
@@ -606,11 +606,7 @@ fn detection_view(input: &TrayInput) -> DetectionView {
         ThresholdPreset::Mebibyte1,
         ThresholdPreset::Mebibytes5,
     ];
-    const GRACE: [GracePreset; 3] = [
-        GracePreset::Seconds30,
-        GracePreset::Minutes2,
-        GracePreset::Minutes5,
-    ];
+    const GRACE: [GracePreset; 5] = GracePreset::ALL;
     let threshold = input.tuning.meaningful_receive_rate_bytes_per_second();
     let grace = input.tuning.grace();
     let threshold_checked = THRESHOLDS.map(|preset| threshold == preset.bytes_per_second());
