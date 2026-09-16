@@ -574,7 +574,7 @@ fn detector_context_and_exact_preset_selection_are_truthful() {
     assert_eq!(view.power_source, "Battery or limited power");
     assert_eq!(view.threshold.checked, [false, true, false]);
     assert_eq!(view.threshold.custom, None);
-    assert_eq!(view.grace.checked, [false, true, false]);
+    assert_eq!(view.grace.checked, [false, true, false, false, false]);
     assert_eq!(view.grace.custom, None);
 }
 
@@ -592,8 +592,40 @@ fn valid_custom_tuning_is_shown_without_checking_a_nearest_preset() {
 
     assert_eq!(view.threshold.checked, [false; 3]);
     assert_eq!(view.threshold.custom.as_deref(), Some("Custom — 3 MB/s"));
-    assert_eq!(view.grace.checked, [false; 3]);
+    assert_eq!(view.grace.checked, [false; 5]);
     assert_eq!(view.grace.custom.as_deref(), Some("Custom — 90 seconds"));
+}
+
+#[test]
+fn fifteen_minute_grace_preset_is_projected_as_selected() {
+    let mut input = normal_input();
+    input.tuning = AutomaticDownloadSettings::try_new(
+        1_048_576,
+        Duration::from_secs(5),
+        Duration::from_secs(15 * 60),
+    )
+    .unwrap();
+
+    let view = project(&input).detection;
+
+    assert_eq!(view.grace.checked, [false, false, false, true, false]);
+    assert_eq!(view.grace.custom, None);
+}
+
+#[test]
+fn thirty_minute_grace_preset_is_projected_as_selected() {
+    let mut input = normal_input();
+    input.tuning = AutomaticDownloadSettings::try_new(
+        1_048_576,
+        Duration::from_secs(5),
+        Duration::from_secs(30 * 60),
+    )
+    .unwrap();
+
+    let view = project(&input).detection;
+
+    assert_eq!(view.grace.checked, [false, false, false, false, true]);
+    assert_eq!(view.grace.custom, None);
 }
 
 #[test]
@@ -688,6 +720,21 @@ fn command_facade_routes_real_services_and_rejects_shutdown_or_placeholder_work(
         detector.snapshot().settings.grace(),
         Duration::from_secs(30)
     );
+
+    for (preset, expected) in [
+        (GracePreset::Minutes15, Duration::from_secs(15 * 60)),
+        (GracePreset::Minutes30, Duration::from_secs(30 * 60)),
+    ] {
+        assert_eq!(
+            application.execute(TrayCommand::SetGrace(preset)),
+            TrayCommandOutcome::RefreshRequested
+        );
+        assert_eq!(detector.snapshot().settings.grace(), expected);
+        assert_eq!(settings.snapshot().automatic_download().grace(), expected);
+
+        let restored = SettingsService::load(directory.0.clone(), log.clone());
+        assert_eq!(restored.snapshot().automatic_download().grace(), expected);
+    }
 
     let before_launch_manual = manual.snapshot();
     let before_launch_automatic = controller.snapshot();

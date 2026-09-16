@@ -25,6 +25,11 @@ If meaningful activity resumes during Grace, the detector returns to Active.
 If the grace period expires, it returns to Waiting and removes automatic
 intent.
 
+`Stop keeping awake after traffic drops` sets the quiet interval after qualified
+traffic falls below the threshold. When it ends, Chiù releases only its
+automatic idle-sleep protection. It never puts the computer to sleep; the
+operating system and any other wake reason determine whether and when it sleeps.
+
 ## Default settings
 
 Chiù uses:
@@ -41,7 +46,7 @@ The `Download detection` submenu offers these tuning choices:
 | Setting | Choices |
 | --- | --- |
 | Meaningful receive rate | 256 KiB/s, 1 MiB/s, 5 MiB/s |
-| Grace period | 30 seconds, 2 minutes, 5 minutes |
+| Stop keeping awake after traffic drops | 30 seconds, 2 minutes, 5 minutes, 15 minutes, 30 minutes |
 
 The five-second qualification duration is not user-tunable. A restored setting
 outside the listed menu presets is shown as a custom value rather than

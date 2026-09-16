@@ -88,7 +88,7 @@ fn view(primary: &str) -> TrayView {
                 custom: None,
             },
             grace: ChoiceView {
-                checked: [false, true, false],
+                checked: [false, true, false, false, false],
                 custom: None,
             },
         },
@@ -113,6 +113,31 @@ fn view(primary: &str) -> TrayView {
             open_logs_enabled: false,
         },
     }
+}
+
+#[test]
+fn grace_choices_use_compact_copy_and_the_settled_order() {
+    assert_eq!(GRACE_MENU_LABEL, "Stop keeping awake after traffic drops");
+    assert_eq!(
+        grace_choice_spec().map(|(command, _)| command.id()),
+        [
+            "detection.grace.30",
+            "detection.grace.120",
+            "detection.grace.300",
+            "detection.grace.900",
+            "detection.grace.1800",
+        ]
+    );
+    assert_eq!(
+        grace_choice_spec().map(|(_, label)| label),
+        [
+            "30 seconds",
+            "2 minutes",
+            "5 minutes",
+            "15 minutes",
+            "30 minutes"
+        ]
+    );
 }
 
 fn control(sender: mpsc::Sender<WorkerCommand>) -> PresentationControl {
