@@ -255,8 +255,13 @@ jobs:
           [[ "$comment" == 'untrusted comment: minisign public key: '* ]]
           [[ "$public_key" == RW* ]]
           [[ "$public_key" != *$'\n'* ]]
-          minisign -Vm "${windows[0]}" -x "${windows_signatures[0]}" -P "$public_key"
-          minisign -Vm "${macos_updater[0]}" -x "${macos_updater_signatures[0]}" -P "$public_key"
+          windows_signature=$(mktemp)
+          macos_updater_signature=$(mktemp)
+          trap 'rm -f "$windows_signature" "$macos_updater_signature"' EXIT
+          base64 --decode "${windows_signatures[0]}" > "$windows_signature"
+          base64 --decode "${macos_updater_signatures[0]}" > "$macos_updater_signature"
+          minisign -Vm "${windows[0]}" -x "$windows_signature" -P "$public_key"
+          minisign -Vm "${macos_updater[0]}" -x "$macos_updater_signature" -P "$public_key"
           sha256sum "${windows[0]}" "${windows_signatures[0]}" "${macos[0]}" "${macos_updater[0]}" "${macos_updater_signatures[0]}" | sed 's#assets/##' | LC_ALL=C sort > assets/SHA256SUMS.txt
 
           if gh release view "$TAG" >/dev/null 2>&1; then
