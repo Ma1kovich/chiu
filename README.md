@@ -4,9 +4,11 @@
 [![CI](https://github.com/Ma1kovich/chiu/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Ma1kovich/chiu/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Download: [Windows](https://github.com/Ma1kovich/chiu/releases/download/updater/chiu-setup.exe)
-· [macOS](https://github.com/Ma1kovich/chiu/releases/download/updater/chiu.dmg)
-· [SHA-256 checksums](https://github.com/Ma1kovich/chiu/releases/download/updater/SHA256SUMS.txt)
+Stable download: [Windows](https://github.com/Ma1kovich/chiu/releases/latest/download/chiu-setup.exe)
+· [macOS](https://github.com/Ma1kovich/chiu/releases/latest/download/chiu.dmg)
+· [SHA-256 checksums](https://github.com/Ma1kovich/chiu/releases/latest/download/SHA256SUMS.txt)
+
+Prereleases: [GitHub Releases](https://github.com/Ma1kovich/chiu/releases)
 
 <p align="center">
   <picture>

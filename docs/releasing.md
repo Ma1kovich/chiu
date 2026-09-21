@@ -59,16 +59,22 @@ supported platforms.
 
 After publishing a validated versioned release, run the **Promote updater
 metadata** workflow with that version. It verifies the public Windows installer,
-macOS disk image, updater payloads, signatures, and checksums, then updates the
-prerelease-only metadata endpoint at
-`releases/download/updater/latest.json`. The metadata references immutable
-versioned assets, and maps the one universal macOS archive to both Intel and
-Apple Silicon updater targets. The same promotion replaces the README's direct
-Windows, macOS, and checksum downloads. The workflow verifies the served copies
-before it completes.
+macOS disk image, updater payloads, signatures, and checksums, then deploys
+`https://ma1kovich.github.io/chiu/latest.json` through GitHub Pages. The
+metadata references immutable versioned assets and maps the universal macOS
+archive to both Intel and Apple Silicon updater targets. Promotion rejects an
+older version and verifies the exact served metadata before it completes.
 
-Do not promote metadata before the release is public. The updater prerelease
-holds metadata and the current verified downloads; it is not a product release.
+GitHub Pages must use GitHub Actions as its publishing source. The
+`github-pages` environment permits deployments only from the default branch.
+Do not promote metadata before the versioned release is public. Once a stable
+release has been published, the release and promotion workflows reject later
+prereleases.
+
+GitHub's `/releases/latest/download/<asset>` links provide stable direct
+downloads for the consistently named Windows installer, macOS disk image, and
+checksum file. They resolve the latest non-prerelease release; use the Releases
+page for prerelease downloads.
 
 ## Release validation
 

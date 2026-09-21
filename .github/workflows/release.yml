@@ -31,15 +31,17 @@ jobs:
         id: prepare
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ inputs.version }}
         run: |
           test "$GITHUB_REF_NAME" = "$DEFAULT_BRANCH"
-          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]
+          bash .github/scripts/validate-release-policy.sh "$VERSION"
 
           tag="v$VERSION"
           current=$(cargo metadata --manifest-path src-tauri/Cargo.toml --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "chiu") | .version')
           if git rev-parse --verify --quiet "refs/tags/$tag"; then
             git checkout --detach "$tag"
+            bash .github/scripts/validate-release-policy.sh "$VERSION"
             tagged=$(cargo metadata --manifest-path src-tauri/Cargo.toml --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "chiu") | .version')
             test "$tagged" = "$VERSION"
             {
