@@ -36,7 +36,9 @@ jobs:
           [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]
           tag="v$VERSION"
           test "$(gh release view "$tag" --json isDraft --jq .isDraft)" = false
-          release_is_prerelease=$(gh release view "$tag" --json isPrerelease --jq .isPrerelease)
+          release=$(gh release view "$tag" --json isPrerelease,targetCommitish)
+          release_is_prerelease=$(jq -er .isPrerelease <<<"$release")
+          release_target=$(jq -er .targetCommitish <<<"$release")
           release_version="${VERSION%%+*}"
           if [[ "$release_version" == *-* ]]; then
             test "$release_is_prerelease" = true
@@ -209,7 +211,7 @@ jobs:
               raise SystemExit("refusing to replace updater metadata with an older version")
           PY
           else
-            gh release create updater --target "$tag" --title 'Chiù updater metadata' --prerelease \
+            gh release create updater --target "$release_target" --title 'Chiù updater metadata' --prerelease \
               --notes 'Updater metadata and latest verified downloads.'
           fi
 
