@@ -1,6 +1,19 @@
 # Chiù
 
-> **Image placeholder:** Chiù app icon.
+[![Release](https://img.shields.io/github/v/tag/Ma1kovich/chiu?sort=semver&label=release)](https://github.com/Ma1kovich/chiu/releases)
+[![CI](https://github.com/Ma1kovich/chiu/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Ma1kovich/chiu/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+Download: [Windows](https://github.com/Ma1kovich/chiu/releases/download/updater/chiu-setup.exe)
+· [macOS](https://github.com/Ma1kovich/chiu/releases/download/updater/chiu.dmg)
+· [SHA-256 checksums](https://github.com/Ma1kovich/chiu/releases/download/updater/SHA256SUMS.txt)
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/icons/chiu-owl-light.svg">
+    <img src="assets/icons/chiu-owl.svg" alt="Chiù owl icon" width="120">
+  </picture>
+</p>
 
 **Keep your computer awake during downloads — or whenever you tell it to.**
 
@@ -65,12 +78,10 @@ The tray also provides download-detection tuning and a `Settings` submenu for
 launch at login, optional updates, diagnostics, logs, and application details.
 [How Chiù works](docs/how-it-works.md) explains the full behavior.
 
-## Download and installation
+## Installation
 
-Published downloads and release notes appear on
-[GitHub Releases](https://github.com/Ma1kovich/chiu/releases). On macOS, mount
-the disk image, drag `Chiù.app` to its `Applications` shortcut, then eject the
-disk image.
+On macOS, open the download, drag `Chiù.app` to its `Applications` shortcut,
+then eject it.
 
 On macOS, the first launch may require one approval through **System Settings →
 Privacy & Security → Open Anyway**. Never disable Gatekeeper to install Chiù.

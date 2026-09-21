@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: SemVer without the v prefix (for example, 0.1.0-alpha.1)
+        description: SemVer without the v prefix (for example, 0.1.0)
         required: true
         type: string
 
@@ -125,28 +125,24 @@ jobs:
       - name: Stage the Windows installer
         if: runner.os == 'Windows'
         shell: bash
-        env:
-          VERSION: ${{ inputs.version }}
         run: |
           installers=(src-tauri/target/release/bundle/nsis/*-setup.exe)
           test "${#installers[@]}" -eq 1
           test -f "${installers[0]}.sig"
-          cp "${installers[0]}" "$RUNNER_TEMP/chiu_${VERSION}_windows_x64_unsigned-setup.exe"
-          cp "${installers[0]}.sig" "$RUNNER_TEMP/chiu_${VERSION}_windows_x64_unsigned-setup.exe.sig"
+          cp "${installers[0]}" "$RUNNER_TEMP/chiu-setup.exe"
+          cp "${installers[0]}.sig" "$RUNNER_TEMP/chiu-setup.exe.sig"
       - name: Upload the staged Windows installer
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-windows-installer
           path: |
-            ${{ runner.temp }}/chiu_${{ inputs.version }}_windows_x64_unsigned-setup.exe
-            ${{ runner.temp }}/chiu_${{ inputs.version }}_windows_x64_unsigned-setup.exe.sig
+            ${{ runner.temp }}/chiu-setup.exe
+            ${{ runner.temp }}/chiu-setup.exe.sig
           if-no-files-found: error
           retention-days: 1
       - name: Create and validate the macOS disk image
         if: runner.os == 'macOS'
-        env:
-          VERSION: ${{ inputs.version }}
         run: |
           application='src-tauri/target/universal-apple-darwin/release/bundle/macos/Chiù.app'
           test -d "$application"
@@ -157,7 +153,7 @@ jobs:
           ditto "$application" "$disk_image_root/Chiù.app"
           ln -s /Applications "$disk_image_root/Applications"
 
-          artifact_path="$RUNNER_TEMP/chiu_${VERSION}_darwin_universal_adhoc.dmg"
+          artifact_path="$RUNNER_TEMP/chiu.dmg"
           hdiutil create -fs HFS+ -volname 'Chiù' -srcfolder "$disk_image_root" -format UDZO -ov "$artifact_path"
           hdiutil verify "$artifact_path"
 
@@ -190,14 +186,14 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$updater_application"
           codesign --display --verbose=4 "$updater_application" 2>&1 | grep -Fqx 'Signature=adhoc'
           lipo "$updater_executable" -verify_arch arm64 x86_64
-          cp "$updater_archive" "$RUNNER_TEMP/chiu_${VERSION}_darwin_universal_adhoc.app.tar.gz"
-          cp "$updater_archive.sig" "$RUNNER_TEMP/chiu_${VERSION}_darwin_universal_adhoc.app.tar.gz.sig"
+          cp "$updater_archive" "$RUNNER_TEMP/chiu-updater-macos.tar.gz"
+          cp "$updater_archive.sig" "$RUNNER_TEMP/chiu-updater-macos.tar.gz.sig"
       - name: Upload the validated macOS disk image
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-macos-disk-image
-          path: ${{ runner.temp }}/chiu_${{ inputs.version }}_darwin_universal_adhoc.dmg
+          path: ${{ runner.temp }}/chiu.dmg
           if-no-files-found: error
           retention-days: 1
       - name: Upload the validated macOS updater payload
@@ -206,8 +202,8 @@ jobs:
         with:
           name: release-macos-updater
           path: |
-            ${{ runner.temp }}/chiu_${{ inputs.version }}_darwin_universal_adhoc.app.tar.gz
-            ${{ runner.temp }}/chiu_${{ inputs.version }}_darwin_universal_adhoc.app.tar.gz.sig
+            ${{ runner.temp }}/chiu-updater-macos.tar.gz
+            ${{ runner.temp }}/chiu-updater-macos.tar.gz.sig
           if-no-files-found: error
           retention-days: 1
 
@@ -238,11 +234,11 @@ jobs:
           TAG: ${{ needs.prepare.outputs.tag }}
           VERSION: ${{ inputs.version }}
         run: |
-          windows=(assets/*_windows_x64_unsigned-setup.exe)
-          windows_signatures=(assets/*_windows_x64_unsigned-setup.exe.sig)
-          macos=(assets/*_darwin_universal_adhoc.dmg)
-          macos_updater=(assets/*_darwin_universal_adhoc.app.tar.gz)
-          macos_updater_signatures=(assets/*_darwin_universal_adhoc.app.tar.gz.sig)
+          windows=(assets/chiu-setup.exe)
+          windows_signatures=(assets/chiu-setup.exe.sig)
+          macos=(assets/chiu.dmg)
+          macos_updater=(assets/chiu-updater-macos.tar.gz)
+          macos_updater_signatures=(assets/chiu-updater-macos.tar.gz.sig)
           test "${#windows[@]}" -eq 1
           test "${#windows_signatures[@]}" -eq 1
           test "${#macos[@]}" -eq 1
@@ -267,11 +263,17 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             test "$(gh release view "$TAG" --json isDraft --jq .isDraft)" = true
           else
+            release_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/$TAG"
+            release_notes=$'## Downloads\n\n'
+            release_notes+="- [Windows]($release_url/$(basename "${windows[0]}"))"$'\n'
+            release_notes+="- [macOS]($release_url/$(basename "${macos[0]}"))"$'\n'
+            release_notes+="- [SHA-256 checksums]($release_url/SHA256SUMS.txt)"$'\n\n'
+            release_notes+=$'The macOS app is ad-hoc signed. It is not signed with an Apple Developer ID and is not notarized. Mount the download and drag Chiù.app to Applications. macOS may require approval in System Settings → Privacy & Security → Open Anyway.'
             arguments=(
               --title "Chiù $TAG"
               --draft
               --generate-notes
-              --notes "The application in the macOS disk image is ad-hoc signed. It is not signed with an Apple Developer ID and is not notarized. Mount the disk image and drag Chiù.app to Applications. macOS may require approval in System Settings → Privacy & Security → Open Anyway."
+              --notes "$release_notes"
             )
             release_version="${VERSION%%+*}"
             if [[ "$release_version" == *-* ]]; then
