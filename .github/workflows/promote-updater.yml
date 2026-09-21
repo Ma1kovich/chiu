@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: SemVer without the v prefix (for example, 0.1.0-alpha.2)
+        description: SemVer without the v prefix (for example, 0.1.0)
         required: true
         type: string
 
@@ -45,10 +45,23 @@ jobs:
           fi
 
           base_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/$tag"
-          windows="chiu_${VERSION}_windows_x64_unsigned-setup.exe"
+          release_assets=$(gh release view "$tag" --json assets --jq '.assets[].name')
+
+          release_asset() {
+            local canonical="$1"
+            local legacy="$2"
+            local match
+            match=$(printf '%s\n' "$release_assets" | grep -Fxe "$canonical" -e "$legacy")
+            test "$(printf '%s\n' "$match" | wc -l | tr -d ' ')" -eq 1
+            printf '%s\n' "$match"
+          }
+
+          windows=$(release_asset chiu-setup.exe "chiu_${VERSION}_windows_x64_unsigned-setup.exe")
+          disk_image=$(release_asset chiu.dmg "chiu_${VERSION}_darwin_universal_adhoc.dmg")
+          macos=$(release_asset chiu-updater-macos.tar.gz "chiu_${VERSION}_darwin_universal_adhoc.app.tar.gz")
           windows_signature="$windows.sig"
-          macos="chiu_${VERSION}_darwin_universal_adhoc.app.tar.gz"
           macos_signature="$macos.sig"
+          checksums='SHA256SUMS.txt'
 
           fetch_asset() {
             local url="$1"
@@ -57,14 +70,36 @@ jobs:
               --output "$RUNNER_TEMP/$name" "$url/$name"
           }
 
+          wait_for_asset() {
+            local expected="$1"
+            local url="$2"
+            local served="$3"
+            for _ in {1..6}; do
+              if curl --fail --location --output "$served" "$url" \
+                && cmp --silent "$expected" "$served"; then
+                return
+              fi
+              sleep 5
+            done
+            cmp --silent "$expected" "$served"
+          }
+
           fetch_asset "$base_url" "$windows"
           fetch_asset "$base_url" "$windows_signature"
+          fetch_asset "$base_url" "$disk_image"
           fetch_asset "$base_url" "$macos"
           fetch_asset "$base_url" "$macos_signature"
+          fetch_asset "$base_url" "$checksums"
           test -s "$RUNNER_TEMP/$windows"
           test -s "$RUNNER_TEMP/$windows_signature"
+          test -s "$RUNNER_TEMP/$disk_image"
           test -s "$RUNNER_TEMP/$macos"
           test -s "$RUNNER_TEMP/$macos_signature"
+          test -s "$RUNNER_TEMP/$checksums"
+          (
+            cd "$RUNNER_TEMP"
+            sha256sum --check "$checksums"
+          )
           key_file=$(jq -er '.plugins.updater.pubkey' src-tauri/tauri.conf.json | base64 --decode)
           comment="${key_file%%$'\n'*}"
           public_key="${key_file#*$'\n'}"
@@ -72,8 +107,21 @@ jobs:
           [[ "$comment" == 'untrusted comment: minisign public key: '* ]]
           [[ "$public_key" == RW* ]]
           [[ "$public_key" != *$'\n'* ]]
-          minisign -Vm "$RUNNER_TEMP/$windows" -x "$RUNNER_TEMP/$windows_signature" -P "$public_key"
-          minisign -Vm "$RUNNER_TEMP/$macos" -x "$RUNNER_TEMP/$macos_signature" -P "$public_key"
+          windows_verification_signature=$(mktemp)
+          macos_verification_signature=$(mktemp)
+          trap 'rm -f "$windows_verification_signature" "$macos_verification_signature"' EXIT
+          base64 --decode "$RUNNER_TEMP/$windows_signature" > "$windows_verification_signature"
+          base64 --decode "$RUNNER_TEMP/$macos_signature" > "$macos_verification_signature"
+          minisign -Vm "$RUNNER_TEMP/$windows" -x "$windows_verification_signature" -P "$public_key"
+          minisign -Vm "$RUNNER_TEMP/$macos" -x "$macos_verification_signature" -P "$public_key"
+
+          latest_downloads=$(mktemp -d "$RUNNER_TEMP/chiu-latest-downloads.XXXXXX")
+          cp "$RUNNER_TEMP/$windows" "$latest_downloads/chiu-setup.exe"
+          cp "$RUNNER_TEMP/$disk_image" "$latest_downloads/chiu.dmg"
+          (
+            cd "$latest_downloads"
+            sha256sum chiu-setup.exe chiu.dmg > SHA256SUMS.txt
+          )
 
           metadata="$RUNNER_TEMP/latest.json"
           jq -n \
@@ -162,17 +210,20 @@ jobs:
           PY
           else
             gh release create updater --target "$tag" --title 'Chiù updater metadata' --prerelease \
-              --notes 'This release supplies updater metadata. Download application releases from their versioned releases.'
+              --notes 'Updater metadata and latest verified downloads.'
           fi
 
           gh release upload updater "$metadata#latest.json" --clobber
 
           metadata_url='https://github.com/'"$GITHUB_REPOSITORY"'/releases/download/updater/latest.json'
-          for _ in {1..6}; do
-            if curl --fail --location --output "$RUNNER_TEMP/served-latest.json" "$metadata_url" \
-              && cmp --silent "$metadata" "$RUNNER_TEMP/served-latest.json"; then
-              exit 0
-            fi
-            sleep 5
+          wait_for_asset "$metadata" "$metadata_url" "$RUNNER_TEMP/served-latest.json"
+
+          gh release upload updater "$latest_downloads/chiu-setup.exe" --clobber
+          gh release upload updater "$latest_downloads/chiu.dmg" --clobber
+          gh release upload updater "$latest_downloads/SHA256SUMS.txt" --clobber
+
+          for asset in chiu-setup.exe chiu.dmg SHA256SUMS.txt; do
+            wait_for_asset "$latest_downloads/$asset" \
+              "https://github.com/$GITHUB_REPOSITORY/releases/download/updater/$asset" \
+              "$RUNNER_TEMP/served-$asset"
           done
-          exit 1

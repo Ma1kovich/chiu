@@ -15,7 +15,7 @@
 
 - Releases use Semantic Versioning.
 - Stable release tags use `vMAJOR.MINOR.PATCH`.
-- Pre-release identifiers are permitted following SemVer, for example `v0.1.0-alpha.1`.
+- Prerelease tags use Semantic Versioning prerelease suffixes.
 
 ## Legal and distribution
 

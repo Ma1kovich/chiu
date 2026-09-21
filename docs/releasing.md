@@ -5,8 +5,7 @@ GitHub Releases is Chiù's download and release-notes channel.
 ## Versioning and release notes
 
 Chiù uses [Semantic Versioning](https://semver.org/). Stable tags use
-`vMAJOR.MINOR.PATCH`; SemVer prerelease identifiers are allowed, for example
-`v0.1.0-alpha.1`.
+`vMAJOR.MINOR.PATCH`; prerelease tags use SemVer prerelease suffixes.
 
 Release notes belong in GitHub Releases. The project intentionally does not
 maintain a handwritten `CHANGELOG.md`.
@@ -15,8 +14,9 @@ To make a release, run the **Release** workflow from the GitHub Actions page and
 enter the new version without a `v` prefix. The workflow updates
 `src-tauri/Cargo.toml` and `src-tauri/Cargo.lock`, commits the version to the
 default branch, creates the matching `v` tag, builds both desktop packages, and
-creates a draft GitHub release with generated notes and SHA-256 checksums.
-Review the draft before publishing it. The Windows installer is unsigned. The
+creates a draft GitHub release with generated notes, Windows and macOS download
+links, and SHA-256 checksums. Review the draft before publishing it. The Windows
+installer is unsigned. The
 universal macOS disk image contains an ad-hoc signed application: it seals the
 code, but does not identify a trusted publisher and is neither Developer ID
 signed nor notarized. Do not publish the draft until its disk image has been
@@ -27,8 +27,8 @@ Gatekeeper approval path below.
 A release provides:
 
 - a Windows 11 x64 installer; and
-- a universal macOS disk image containing an application with Intel and Apple
-  Silicon slices.
+- a macOS download containing an application with Intel and Apple Silicon
+  slices.
 
 When updater support is configured, the draft also contains the signed Windows
 installer, the signed universal macOS updater archive, and their detached
@@ -58,18 +58,17 @@ metadata, protected signing keys, and an exercised N-to-N+1 update on both
 supported platforms.
 
 After publishing a validated versioned release, run the **Promote updater
-metadata** workflow with that version. It verifies that the public Windows and
-macOS updater payloads and signatures are available, then updates the
+metadata** workflow with that version. It verifies the public Windows installer,
+macOS disk image, updater payloads, signatures, and checksums, then updates the
 prerelease-only metadata endpoint at
 `releases/download/updater/latest.json`. The metadata references immutable
 versioned assets, and maps the one universal macOS archive to both Intel and
-Apple Silicon updater targets. The metadata asset can briefly be unavailable
-while GitHub replaces it; update checks must treat that as a retryable failure,
-never as a successful update.
+Apple Silicon updater targets. The same promotion replaces the README's direct
+Windows, macOS, and checksum downloads. The workflow verifies the served copies
+before it completes.
 
-Do not promote metadata before the release is public. The updater release is
-only a pointer for installed applications; it is not a product release and
-must remain a GitHub prerelease.
+Do not promote metadata before the release is public. The updater prerelease
+holds metadata and the current verified downloads; it is not a product release.
 
 ## Release validation
 
