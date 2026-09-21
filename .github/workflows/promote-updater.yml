@@ -25,7 +25,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: v${{ inputs.version }}
+          fetch-depth: 0
+          ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
       - name: Configure GitHub Pages
         id: pages
@@ -100,7 +101,7 @@ jobs:
             cd "$RUNNER_TEMP"
             sha256sum --check "$checksums"
           )
-          key_file=$(jq -er '.plugins.updater.pubkey' src-tauri/tauri.conf.json | base64 --decode)
+          key_file=$(git show "$tag:src-tauri/tauri.conf.json" | jq -er '.plugins.updater.pubkey' | base64 --decode)
           comment="${key_file%%$'\n'*}"
           public_key="${key_file#*$'\n'}"
           test "$comment" != "$key_file"
