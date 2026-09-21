@@ -13,32 +13,44 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  promote:
+  prepare:
     if: github.actor == github.repository_owner
     runs-on: ubuntu-24.04
     permissions:
-      contents: write
+      contents: read
+      pages: read
+    outputs:
+      metadata_sha256: ${{ steps.stage.outputs.metadata_sha256 }}
+      metadata_url: ${{ steps.pages.outputs.base_url }}/latest.json
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: v${{ inputs.version }}
           persist-credentials: false
+      - name: Configure GitHub Pages
+        id: pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - name: Install the updater signature verifier
         run: |
           sudo apt-get update
           sudo apt-get install --yes minisign
-      - name: Verify public updater artifacts and promote metadata
+      - name: Verify public updater artifacts and prepare metadata
+        id: stage
         env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          METADATA_URL: ${{ steps.pages.outputs.base_url }}/latest.json
           VERSION: ${{ inputs.version }}
         run: |
-          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]
+          test "$GITHUB_REF_NAME" = "$DEFAULT_BRANCH"
+          bash .github/scripts/validate-release-policy.sh "$VERSION" "$METADATA_URL"
           tag="v$VERSION"
           test "$(gh release view "$tag" --json isDraft --jq .isDraft)" = false
-          release=$(gh release view "$tag" --json isPrerelease,targetCommitish)
+          release=$(gh release view "$tag" --json isPrerelease,publishedAt)
           release_is_prerelease=$(jq -er .isPrerelease <<<"$release")
-          release_target=$(jq -er .targetCommitish <<<"$release")
+          release_published_at=$(jq -er .publishedAt <<<"$release")
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/$tag" --jq .immutable)" = true
           release_version="${VERSION%%+*}"
           if [[ "$release_version" == *-* ]]; then
             test "$release_is_prerelease" = true
@@ -72,20 +84,6 @@ jobs:
               --output "$RUNNER_TEMP/$name" "$url/$name"
           }
 
-          wait_for_asset() {
-            local expected="$1"
-            local url="$2"
-            local served="$3"
-            for _ in {1..6}; do
-              if curl --fail --location --output "$served" "$url" \
-                && cmp --silent "$expected" "$served"; then
-                return
-              fi
-              sleep 5
-            done
-            cmp --silent "$expected" "$served"
-          }
-
           fetch_asset "$base_url" "$windows"
           fetch_asset "$base_url" "$windows_signature"
           fetch_asset "$base_url" "$disk_image"
@@ -117,18 +115,13 @@ jobs:
           minisign -Vm "$RUNNER_TEMP/$windows" -x "$windows_verification_signature" -P "$public_key"
           minisign -Vm "$RUNNER_TEMP/$macos" -x "$macos_verification_signature" -P "$public_key"
 
-          latest_downloads=$(mktemp -d "$RUNNER_TEMP/chiu-latest-downloads.XXXXXX")
-          cp "$RUNNER_TEMP/$windows" "$latest_downloads/chiu-setup.exe"
-          cp "$RUNNER_TEMP/$disk_image" "$latest_downloads/chiu.dmg"
-          (
-            cd "$latest_downloads"
-            sha256sum chiu-setup.exe chiu.dmg > SHA256SUMS.txt
-          )
-
-          metadata="$RUNNER_TEMP/latest.json"
+          site_directory="$RUNNER_TEMP/chiu-pages"
+          mkdir "$site_directory"
+          touch "$site_directory/.nojekyll"
+          metadata="$site_directory/latest.json"
           jq -n \
             --arg version "$VERSION" \
-            --arg published_at "$(date --utc +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg published_at "$release_published_at" \
             --arg windows_url "$base_url/$windows" \
             --arg macos_url "$base_url/$macos" \
             --rawfile windows_signature "$RUNNER_TEMP/$windows_signature" \
@@ -165,10 +158,11 @@ jobs:
               and .platforms["darwin-x86_64"] == {url: $macos_url, signature: $macos_signature}' \
             "$metadata"
 
-          if gh release view updater >/dev/null 2>&1; then
-            test "$(gh release view updater --json isDraft,isPrerelease --jq '.isDraft == false and .isPrerelease == true')" = true
-            current_version=$(curl --fail --location --retry 6 --retry-all-errors --retry-delay 5 \
-              'https://github.com/'"$GITHUB_REPOSITORY"'/releases/download/updater/latest.json' | jq -er .version)
+          current_metadata="$RUNNER_TEMP/current-latest.json"
+          current_status=$(curl --silent --show-error --location \
+            --output "$current_metadata" --write-out '%{http_code}' "$METADATA_URL")
+          if [[ "$current_status" == 200 ]]; then
+            current_version=$(jq -er .version "$current_metadata")
             python3 - "$current_version" "$VERSION" <<'PY'
           import re
           import sys
@@ -209,23 +203,50 @@ jobs:
               comparison = compare_prerelease(current_pre, requested_pre)
           if comparison > 0:
               raise SystemExit("refusing to replace updater metadata with an older version")
+          if comparison == 0 and sys.argv[1] != sys.argv[2]:
+              raise SystemExit("refusing to replace updater metadata with a version of equal precedence")
           PY
+            if [[ "$current_version" == "$VERSION" ]]; then
+              cmp --silent "$current_metadata" "$metadata"
+            fi
           else
-            gh release create updater --target "$release_target" --title 'Chiù updater metadata' --prerelease \
-              --notes 'Updater metadata and latest verified downloads.'
+            test "$current_status" = 404
           fi
 
-          gh release upload updater "$metadata#latest.json" --clobber
+          metadata_sha256=$(sha256sum "$metadata" | cut -d ' ' -f 1)
+          echo "metadata_sha256=$metadata_sha256" >> "$GITHUB_OUTPUT"
+      - name: Upload the Pages artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: ${{ runner.temp }}/chiu-pages
 
-          metadata_url='https://github.com/'"$GITHUB_REPOSITORY"'/releases/download/updater/latest.json'
-          wait_for_asset "$metadata" "$metadata_url" "$RUNNER_TEMP/served-latest.json"
-
-          gh release upload updater "$latest_downloads/chiu-setup.exe" --clobber
-          gh release upload updater "$latest_downloads/chiu.dmg" --clobber
-          gh release upload updater "$latest_downloads/SHA256SUMS.txt" --clobber
-
-          for asset in chiu-setup.exe chiu.dmg SHA256SUMS.txt; do
-            wait_for_asset "$latest_downloads/$asset" \
-              "https://github.com/$GITHUB_REPOSITORY/releases/download/updater/$asset" \
-              "$RUNNER_TEMP/served-$asset"
+  deploy:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+      pages: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+      - name: Verify the served updater metadata
+        env:
+          EXPECTED_SHA256: ${{ needs.prepare.outputs.metadata_sha256 }}
+          METADATA_URL: ${{ needs.prepare.outputs.metadata_url }}
+        run: |
+          served="$RUNNER_TEMP/served-latest.json"
+          for _ in {1..12}; do
+            if curl --fail --silent --show-error --location --output "$served" "$METADATA_URL"; then
+              actual_sha256=$(sha256sum "$served" | cut -d ' ' -f 1)
+              if [[ "$actual_sha256" == "$EXPECTED_SHA256" ]]; then
+                exit 0
+              fi
+            fi
+            sleep 5
           done
+          exit 1

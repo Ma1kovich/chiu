@@ -776,7 +776,7 @@ fn updater_configuration_requires_complete_safe_release_inputs() {
 }
 
 #[test]
-fn shipped_updater_configuration_uses_the_prerelease_metadata_channel() {
+fn shipped_updater_configuration_uses_the_pages_metadata_channel() {
     let configuration: serde_json::Value =
         serde_json::from_str(include_str!("../../tauri.conf.json")).unwrap();
     let updater = configuration
@@ -800,8 +800,7 @@ fn shipped_updater_configuration_uses_the_prerelease_metadata_channel() {
             .map(|endpoints| endpoints.as_slice()),
         Some(
             [serde_json::Value::String(
-                "https://github.com/Ma1kovich/chiu/releases/download/updater/latest.json"
-                    .to_owned()
+                "https://ma1kovich.github.io/chiu/latest.json".to_owned()
             )]
             .as_slice()
         )

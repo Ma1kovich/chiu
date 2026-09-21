@@ -99,6 +99,18 @@ the `Applications` shortcut, and exercise the normal Gatekeeper approval path
 when macOS blocks its first launch. Those behaviors require real-machine
 validation.
 
+## Updater validation
+
+The promotion workflow verifies published release checksums and updater
+signatures, rejects version rollback, deploys `latest.json` to GitHub Pages,
+and verifies the served file. This proves publication, not installed update
+behavior.
+
+Validate updater changes with a published N-to-N+1 update on both supported
+platforms. Exercise explicit consent, interruption and retry, invalid-signature
+rejection, restart, settings preservation, and isolation from active
+keep-awake reasons. Repeat the test for the alpha-to-stable transition.
+
 ## Recording validation
 
 A pull request should state:
