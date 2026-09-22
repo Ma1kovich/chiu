@@ -8,8 +8,6 @@ Stable download: [Windows](https://github.com/Ma1kovich/chiu/releases/latest/dow
 · [macOS](https://github.com/Ma1kovich/chiu/releases/latest/download/chiu.dmg)
 · [SHA-256 checksums](https://github.com/Ma1kovich/chiu/releases/latest/download/SHA256SUMS.txt)
 
-Prereleases: [GitHub Releases](https://github.com/Ma1kovich/chiu/releases)
-
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/icons/chiu-owl-light.svg">
