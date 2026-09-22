@@ -49,7 +49,7 @@ jobs:
           tag="v$VERSION"
           test "$(gh release view "$tag" --json isDraft --jq .isDraft)" = false
           release=$(gh release view "$tag" --json isPrerelease,publishedAt)
-          release_is_prerelease=$(jq -er .isPrerelease <<<"$release")
+          release_is_prerelease=$(jq -r .isPrerelease <<<"$release")
           release_published_at=$(jq -er .publishedAt <<<"$release")
           test "$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/$tag" --jq .immutable)" = true
           release_version="${VERSION%%+*}"
