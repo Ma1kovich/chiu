@@ -19,7 +19,7 @@ permissions:
 jobs:
   dependency-policy:
     name: Dependency policy
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -27,9 +27,9 @@ jobs:
       - name: Install dependency policy tools
         run: |
           # renovate: datasource=crate depName=cargo-audit versioning=semver
-          cargo install --locked --version 0.22.2 cargo-audit
+          cargo install --locked --version 0.23.0 cargo-audit
           # renovate: datasource=crate depName=cargo-deny versioning=semver
-          cargo install --locked --version 0.20.2 cargo-deny
+          cargo install --locked --version 0.22.0 cargo-deny
       - name: Audit committed dependency graph
         run: cargo audit --file src-tauri/Cargo.lock
       - name: Enforce dependency policy
