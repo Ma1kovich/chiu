@@ -114,6 +114,7 @@ pub(crate) struct DiagnosticsView {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct TrayView {
+    pub(crate) protection_active: bool,
     pub(crate) primary: String,
     pub(crate) detail: Option<String>,
     pub(crate) warning: Option<String>,
@@ -342,6 +343,7 @@ fn lifecycle_only_view(status: ApplicationStatus) -> TrayView {
         }
     };
     TrayView {
+        protection_active: false,
         primary: primary.to_owned(),
         detail: None,
         warning: None,
@@ -454,6 +456,7 @@ pub(crate) fn project(input: &TrayInput) -> TrayView {
     };
     let updater = updater_view(&input.updater, commands_enabled);
     TrayView {
+        protection_active: input.protection == ProtectionState::Active,
         primary: primary.to_owned(),
         detail: reason_detail(input).or_else(|| suppression_detail(input)),
         warning: commands_enabled.then(|| warning(input)).flatten(),

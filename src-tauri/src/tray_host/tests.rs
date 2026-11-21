@@ -72,6 +72,7 @@ impl Renderer for BlockingPanicRenderer {
 
 fn view(primary: &str) -> TrayView {
     TrayView {
+        protection_active: false,
         primary: primary.to_owned(),
         detail: None,
         warning: None,
