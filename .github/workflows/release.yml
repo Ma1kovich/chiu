@@ -135,7 +135,7 @@ jobs:
           cp "${installers[0]}.sig" "$RUNNER_TEMP/chiu-setup.exe.sig"
       - name: Upload the staged Windows installer
         if: runner.os == 'Windows'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-windows-installer
           path: |
@@ -192,7 +192,7 @@ jobs:
           cp "$updater_archive.sig" "$RUNNER_TEMP/chiu-updater-macos.tar.gz.sig"
       - name: Upload the validated macOS disk image
         if: runner.os == 'macOS'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-macos-disk-image
           path: ${{ runner.temp }}/chiu.dmg
@@ -200,7 +200,7 @@ jobs:
           retention-days: 1
       - name: Upload the validated macOS updater payload
         if: runner.os == 'macOS'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-macos-updater
           path: |
