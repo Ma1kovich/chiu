@@ -27,7 +27,7 @@ jobs:
       - name: Install dependency policy tools
         run: |
           # renovate: datasource=crate depName=cargo-audit versioning=semver
-          cargo install --locked --version 0.22.2 cargo-audit
+          cargo install --locked --version 0.23.0 cargo-audit
           # renovate: datasource=crate depName=cargo-deny versioning=semver
           cargo install --locked --version 0.20.2 cargo-deny
       - name: Audit committed dependency graph
