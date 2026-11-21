@@ -5,7 +5,9 @@
   "semanticCommits": "enabled",
   "semanticCommitType": "chore",
   "semanticCommitScope": "deps",
-  "dependencyDashboard": true,
+  "dependencyDashboard": {
+    "enabled": true
+  },
   "timezone": "Europe/Berlin",
   "schedule": ["* 0-4 * * 1"],
   "prConcurrentLimit": 3,
