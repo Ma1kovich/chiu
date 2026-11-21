@@ -200,12 +200,8 @@ pub(crate) fn start(
     let callback_application = application.clone();
     let callback_control = control.clone();
     let callback_copy_error_presenter = copy_error_presenter;
-    #[cfg(target_os = "macos")]
-    let tray_icon = tauri::include_image!("./icons/chiu-tray-macos-template.png");
-    #[cfg(target_os = "windows")]
-    let tray_icon = tauri::include_image!("./icons/chiu-tray-windows.png");
     let tray = TrayIconBuilder::with_id(TRAY_ICON_ID)
-        .icon(tray_icon)
+        .icon(tray_icon(initial_view.protection_active))
         .icon_as_template(cfg!(target_os = "macos"))
         .menu(&native_menu.menu)
         .on_menu_event(move |app, event| {
@@ -412,8 +408,31 @@ struct NativeRenderer {
     view: TrayView,
 }
 
+fn tray_icon(active: bool) -> tauri::image::Image<'static> {
+    #[cfg(target_os = "macos")]
+    {
+        if active {
+            tauri::include_image!("./icons/chiu-tray-macos-active.png")
+        } else {
+            tauri::include_image!("./icons/chiu-tray-macos-template.png")
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        if active {
+            tauri::include_image!("./icons/chiu-tray-windows-active.png")
+        } else {
+            tauri::include_image!("./icons/chiu-tray-windows.png")
+        }
+    }
+}
+
 impl Renderer for NativeRenderer {
     fn render(&mut self, view: &TrayView) -> Result<(), BoxError> {
+        if self.view.protection_active != view.protection_active {
+            self.tray
+                .set_icon(Some(tray_icon(view.protection_active)))?;
+        }
         if MenuStructure::from(&self.view) != MenuStructure::from(view) {
             let menu = NativeMenu::build(&self.app, view)?;
             self.tray.set_menu(Some(menu.menu.clone()))?;

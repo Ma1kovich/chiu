@@ -76,6 +76,8 @@ to keep the computer awake when the operating system request was not acquired.
 
 The tray also provides download-detection tuning and a `Settings` submenu for
 launch at login, optional updates, diagnostics, logs, and application details.
+The tray icon shows a dot while Chiù holds sleep protection; the menu provides
+details and reports any protection errors.
 [How Chiù works](docs/how-it-works.md) explains the full behavior.
 
 ## Installation

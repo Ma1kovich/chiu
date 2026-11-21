@@ -277,6 +277,7 @@ fn coordinator_truth_drives_protection_status_and_reason_text() {
 
     let protected = project(&input);
 
+    assert!(protected.protection_active);
     assert_eq!(protected.primary, "Keeping awake");
     assert_eq!(
         protected.detail.as_deref(),
@@ -284,7 +285,9 @@ fn coordinator_truth_drives_protection_status_and_reason_text() {
     );
 
     input.protection = ProtectionState::Inactive;
-    assert_eq!(project(&input).primary, "Protection failed");
+    let failed = project(&input);
+    assert_eq!(failed.primary, "Protection failed");
+    assert!(!failed.protection_active);
 
     input.wake_reasons.clear();
     input.manual_state = ManualSessionState::Inactive;
@@ -293,6 +296,7 @@ fn coordinator_truth_drives_protection_status_and_reason_text() {
     input.desired_automatic_reason = false;
     input.protection = ProtectionState::Active;
     let release_failed = project(&input);
+    assert!(release_failed.protection_active);
     assert_eq!(release_failed.primary, "Sleep protection could not stop");
     assert_eq!(
         release_failed.detail.as_deref(),
